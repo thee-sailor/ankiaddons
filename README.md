@@ -21,7 +21,7 @@ Most add-ons target Anki 2.1.50+ (Qt6).
 | --- | --- |
 | `chatgpt_paste` | Paste notes copied from ChatGPT and have Markdown/LaTeX render automatically — equations become Anki MathJax, tables/lists/arrows/code become HTML, images are kept. Also repairs older notes with un-rendered LaTeX on startup. |
 | `editor_field_search` | A "find in fields" box for the editor (toolbar icon / Ctrl+F): live match count, ▲/▼ navigation, and time-of-day highlight colour. Never modifies note content (uses the CSS Custom Highlight API). |
-| `focus_music_pomodoro` | Focus-music player plus a **multi-phase** Pomodoro cycle (e.g. Study → Genuine break → Value-added break → …), configurable phases, notifications between each, and a dropdown to jump to any phase. *Based on a third-party AnkiWeb add-on, heavily modified.* |
+| `focus_music_pomodoro` | Focus-music player plus a **multi-phase** Pomodoro cycle (e.g. Study → Genuine break → Value-added break → …), configurable phases, notifications between each, and a dropdown to jump to any phase. *Modified from the [Focus Music & Pomodoro Player](https://ankiweb.net/shared/info/1540641384) AnkiWeb add-on — see [`focus_music_pomodoro/CREDITS.md`](focus_music_pomodoro/CREDITS.md).* |
 | `anki_ai_assistant` | A Groq-powered AI sidebar (explain/define/quiz/TTS/web-search, add replies as cards). **Set your own API key** in the add-on config. |
 | `socrates_bar` | Editor bottom bar that sends card text to an embedded ChatGPT page and answer-choice buttons (A–E). Works with the embedded browser add-on. |
 | `deck_sidebar` | Dockable in-app browser sidebar; http links in cards open here instead of an external browser (Ctrl+Shift+B). |

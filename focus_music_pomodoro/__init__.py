@@ -1,3 +1,15 @@
+# Focus Music & Pomodoro Player
+#
+# Based on the "Focus Music & Pomodoro Player" add-on published on AnkiWeb
+# (add-on ID 1540641384): https://ankiweb.net/shared/info/1540641384
+# Original author: the AnkiWeb publisher of that add-on (name not recorded in
+# the distributed package). This is a modified version that adds a customizable
+# multi-phase cycle, per-phase notifications, and a phase-jump menu.
+#
+# Credit for the original work belongs to its author. If you are that author
+# and want a specific credit line or a different license for this folder,
+# please open an issue on the repository.
+
 import os
 import random
 import json
