@@ -5,7 +5,12 @@ medical-study workflow. Each folder is a standalone add-on.
 
 ## Installing
 
-Copy any add-on folder into your Anki add-ons directory and restart Anki:
+👉 **New to this? Follow the simple step-by-step guide: [INSTALL.md](INSTALL.md)**
+— it covers downloading, installing, and setting up **each** add-on in plain
+language.
+
+Quick version for experienced users: copy any add-on folder into your Anki
+add-ons directory and restart Anki:
 
 - **Windows:** `%APPDATA%\Anki2\addons21\`
 - **macOS:** `~/Library/Application Support/Anki2/addons21/`
