@@ -128,6 +128,8 @@ This one needs a free **Groq** API key (takes ~2 minutes):
 - **How to use:** When editing a card, use the bottom bar's **→ Socrates**
   button and the **A–E** buttons.
 
+  ![The Socrates bar with the Socrates button and A–E answer buttons](images/socrates_bar.png)
+
 ### 🌐 deck_sidebar — open web links inside Anki
 - **Needs another add-on first:** the **“Add Dialog Web Browser”** add-on (from
   AnkiWeb).
@@ -146,9 +148,13 @@ This one needs a free **Groq** API key (takes ~2 minutes):
 - **How to use:** On the Decks screen, click the **“Due Only”** button
   (top-right) to hide decks that have 0 cards due.
 
+  ![The Due Only toggle button](images/due_decks_filter.png)
+
 ### 🎨 comet_theme — a custom look for Anki
 - **Setup:** **Tools → Comet Theme Settings** to adjust colours; it applies
   automatically.
+
+  ![The Comet Theme configuration](images/comet_theme.png)
 
 ### 🖼️ anki_theme_switcher — themes + daily backgrounds
 - **Works best with** the **“Custom Background”** add-on by AnKing (from
