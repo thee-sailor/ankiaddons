@@ -1,0 +1,8 @@
+# Anki writes per-user state here — never commit
+meta.json
+user_files/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+__MACOSX/

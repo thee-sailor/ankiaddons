@@ -1,0 +1,8 @@
+{
+    "name": "Focus Music & Pomodoro Player",
+    "version": "1.0.0",
+    "min_point_version": 45,
+    "max_point_version": 2025,
+    "package": "focus_music_player",
+    "dependencies": []
+}

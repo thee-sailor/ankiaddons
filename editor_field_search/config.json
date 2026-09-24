@@ -1,0 +1,9 @@
+{
+    "shortcut": "Ctrl+F",
+    "mode": "auto",
+    "colors": {
+        "morning":   {"bg": "#ffd60a", "fg": "#1a1a1a"},
+        "afternoon": {"bg": "#ffc09f", "fg": "#1a1a1a"},
+        "evening":   {"bg": "#800020", "fg": "#ffffff"}
+    }
+}

@@ -1,0 +1,512 @@
+/*
+ * ═══════════════════════════════════════════════════════════════════
+ *  COMET THEME — Spatial UI for Anki
+ *  Injected into every Anki WebView (Reviewer, Editor, Browser)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ *  ┌── HOW TO CHANGE THE WALLPAPER ──────────────────────────────────┐
+ *  │  Edit --bg-wallpaper below:                                     │
+ *  │  • Solid color  → any CSS color, e.g. #0d1b2a                  │
+ *  │  • Gradient     → linear-gradient(135deg, #091717, #0d2030)     │
+ *  │  • Image        → url('file:///C:/path/to/wallpaper.jpg')       │
+ *  └─────────────────────────────────────────────────────────────────┘
+ */
+
+/* ── Google Fonts ───────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Inter:wght@300;400;500;600&display=swap');
+
+/* ── Token system ───────────────────────────────────────────────────── */
+:root {
+    /* ── Wallpaper (swap this single variable to change the background) */
+    --bg-wallpaper:          #091717;
+
+    /* ── Surface layers */
+    --bg-base:               #091717;
+    --bg-surface:            #0d1e1e;
+    --bg-elevated:           #122626;
+    --bg-card:               #162c2c;
+    --bg-input:              #0e2020;
+    --bg-hover:              rgba(33, 128, 141, 0.08);
+    --bg-selected:           rgba(33, 128, 141, 0.14);
+
+    /* ── Text */
+    --text-primary:          #fbfaf4;
+    --text-secondary:        rgba(251, 250, 244, 0.60);
+    --text-muted:            rgba(251, 250, 244, 0.32);
+    --text-accent:           #4cc2cc;
+
+    /* ── Accent */
+    --accent:                #21808d;
+    --accent-light:          #2d9ead;
+    --accent-dim:            rgba(33, 128, 141, 0.25);
+    --accent-glow:           rgba(33, 128, 141, 0.18);
+    --accent-gradient:       linear-gradient(180deg, #2d9ead 0%, #21808d 100%);
+
+    /* ── Answer-button colors */
+    --btn-again:             rgba(220, 80,  80,  0.80);
+    --btn-hard:              rgba(200, 130, 40,  0.80);
+    --btn-good:              rgba(33,  128, 141, 0.85);
+    --btn-easy:              rgba(60,  180, 120, 0.80);
+
+    /* ── Borders */
+    --border:                rgba(255, 255, 255, 0.055);
+    --border-focus:          rgba(33, 128, 141, 0.55);
+    --border-subtle:         rgba(255, 255, 255, 0.030);
+
+    /* ── Shape */
+    --radius-xs:             6px;
+    --radius-sm:             10px;
+    --radius-md:             16px;
+    --radius-lg:             24px;
+    --radius-xl:             28px;
+    --radius-pill:           999px;
+
+    /* ── Shadow / elevation */
+    --shadow-sm:             0 4px 12px rgba(0, 0, 0, 0.22),
+                             0 1px  4px rgba(0, 0, 0, 0.14);
+    --shadow-card:           0 20px 44px rgba(0, 0, 0, 0.38),
+                             0  6px 18px rgba(0, 0, 0, 0.22),
+                             0  0   0  1px var(--border);
+    --shadow-elevated:       0 32px 64px rgba(0, 0, 0, 0.46),
+                             0  8px 28px rgba(0, 0, 0, 0.28),
+                             0  0   0  1px rgba(255,255,255,0.06);
+    --shadow-glow:           0 0 32px rgba(33, 128, 141, 0.20),
+                             0 0 80px rgba(33, 128, 141, 0.08);
+    /* 7-layer "ambient" stack, adapted from Comet's own CTA button shadow
+       (ratios preserved, opacities raised for a dark surface instead of paper) */
+    --shadow-ambient:        0px -2px  4px  0px rgba(33, 128, 141, 0.20),
+                             0px 24px 40px  0px rgba(0,   0,   0,   0.22),
+                             0px  4px 18px  0px rgba(0,   0,   0,   0.16),
+                             0px 27px 11px  0px rgba(0,   0,   0,   0.10),
+                             0px 15px  9px  0px rgba(0,   0,   0,   0.12),
+                             0px  7px  7px  0px rgba(0,   0,   0,   0.16),
+                             0px  1px  4px  0px rgba(0,   0,   0,   0.20);
+
+    /* ── Typography */
+    --font-display:          'Newsreader', 'Georgia', 'Times New Roman', serif;
+    --font-ui:               'Inter', 'SF Pro Display', -apple-system, 'Segoe UI', sans-serif;
+
+    /* ── Noise */
+    --noise-opacity:         0.035;
+    --noise-url:             url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='250' height='250' filter='url(%23n)'/%3E%3C/svg%3E");
+
+    /* ── Motion */
+    --ease-out:              cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out:           cubic-bezier(0.45, 0, 0.55, 1);
+    --duration-fast:         150ms;
+    --duration-base:         240ms;
+    --duration-slow:         380ms;
+}
+
+/* ── Reset / base ───────────────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    background: var(--bg-wallpaper);
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg-wallpaper);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    position: relative;
+}
+
+/* Noise overlay — applies grain texture to the entire page */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: var(--noise-url);
+    background-repeat: repeat;
+    background-size: 250px 250px;
+    opacity: var(--noise-opacity);
+    pointer-events: none;
+    z-index: 9999;
+    mix-blend-mode: overlay;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────── */
+h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    color: var(--text-primary);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.5em;
+}
+
+h1 { font-size: 2rem;   font-style: italic; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.2rem; }
+
+p  { margin: 0 0 0.75em; color: var(--text-secondary); }
+a  { color: var(--accent-light); text-decoration: none; }
+a:hover { color: var(--text-accent); }
+
+/* ── Reviewer — card container ──────────────────────────────────────── */
+#qa,
+#qa_box,
+.qa-box {
+    max-width: 720px;
+    margin: 40px auto;
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card), var(--shadow-ambient);
+    padding: 36px 40px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: box-shadow var(--duration-slow) var(--ease-out);
+}
+
+#qa::after,
+.qa-box::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: var(--noise-url);
+    background-repeat: repeat;
+    background-size: 250px 250px;
+    opacity: 0.025;
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+/* Divider between question and answer */
+#answer > hr,
+hr.answer-divider,
+#qa hr {
+    border: none;
+    height: 1px;
+    background: var(--border);
+    margin: 28px 0;
+}
+
+/* ── Card content typography ────────────────────────────────────────── */
+.card {
+    font-family: var(--font-ui);
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+}
+
+/* Bold key terms get accent coloring */
+.card b,
+.card strong {
+    color: var(--text-accent);
+    font-weight: 600;
+}
+
+/* Cloze deletions */
+.cloze {
+    color: var(--accent-light);
+    font-weight: 600;
+    background: var(--accent-glow);
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
+}
+
+/* ── Answer buttons (Again / Hard / Good / Easy) ────────────────────── */
+#answer,
+#answer-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+}
+
+#ease1, #ease2, #ease3, #ease4,
+button.ease {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 10px 26px;
+    cursor: pointer;
+    transition:
+        transform  var(--duration-fast) var(--ease-out),
+        box-shadow var(--duration-base) var(--ease-out),
+        filter     var(--duration-fast) var(--ease-out);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* Shimmer sweep on hover */
+#ease1::before, #ease2::before, #ease3::before, #ease4::before,
+button.ease::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        105deg,
+        transparent 30%,
+        rgba(255,255,255,0.18) 50%,
+        transparent 70%
+    );
+    transform: translateX(-120%);
+    transition: transform 0.55s var(--ease-out);
+    pointer-events: none;
+}
+#ease1:hover::before, #ease2:hover::before, #ease3:hover::before, #ease4:hover::before,
+button.ease:hover::before {
+    transform: translateX(120%);
+}
+
+#ease1:hover, #ease2:hover, #ease3:hover, #ease4:hover,
+button.ease:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.15);
+}
+#ease1:active, #ease2:active, #ease3:active, #ease4:active {
+    transform: translateY(0) scale(0.97);
+}
+
+#ease1 { background: var(--btn-again); box-shadow: 0 4px 16px rgba(220,80,80,0.35); }
+#ease2 { background: var(--btn-hard);  box-shadow: 0 4px 16px rgba(200,130,40,0.30); }
+#ease3 { background: var(--btn-good);  box-shadow: 0 4px 20px rgba(33,128,141,0.40); }
+#ease4 { background: var(--btn-easy);  box-shadow: 0 4px 16px rgba(60,180,120,0.35); }
+
+/* Show-answer / Continue button */
+#ansbut,
+button#ansbut,
+input#ansbut {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: var(--accent-gradient);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 12px 40px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(33,128,141,0.45), var(--shadow-glow), var(--shadow-ambient);
+    transition:
+        transform  var(--duration-fast) var(--ease-out),
+        box-shadow var(--duration-base) var(--ease-out),
+        filter     var(--duration-fast);
+    display: block;
+    margin: 28px auto 0;
+}
+/* glass highlight — a soft light sheen across the top of the pill,
+   matching the glossy CTA buttons on Comet's own marketing page */
+#ansbut::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0) 45%);
+    mix-blend-mode: overlay;
+    pointer-events: none;
+}
+#ansbut:hover {
+    background: var(--accent-gradient);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(33,128,141,0.55), var(--shadow-glow), var(--shadow-ambient);
+    filter: brightness(1.08);
+}
+#ansbut:active {
+    transform: translateY(0) scale(0.97);
+}
+
+/* ── Note editor ────────────────────────────────────────────────────── */
+.field,
+.rich-text-editable,
+.editing-area,
+[contenteditable] {
+    background: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-md) !important;
+    padding: 14px 18px !important;
+    font-family: var(--font-ui) !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+    outline: none !important;
+}
+.field:focus,
+.rich-text-editable:focus,
+[contenteditable]:focus {
+    border-color: var(--border-focus) !important;
+    box-shadow: 0 0 0 3px var(--accent-dim) !important;
+}
+
+/* Field label badges */
+.label-name,
+.field-label {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+/* ── Input & select (general) ───────────────────────────────────────── */
+input[type="text"],
+input[type="search"],
+input[type="number"],
+select,
+textarea {
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    outline: none;
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+    -webkit-appearance: none;
+}
+input[type="text"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ── Generic buttons ────────────────────────────────────────────────── */
+button:not(#ease1):not(#ease2):not(#ease3):not(#ease4):not(#ansbut),
+input[type="button"],
+input[type="submit"] {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 7px 18px;
+    cursor: pointer;
+    transition:
+        background   var(--duration-fast),
+        color        var(--duration-fast),
+        border-color var(--duration-fast),
+        transform    var(--duration-fast) var(--ease-out);
+    position: relative;
+    overflow: hidden;
+}
+button:not(#ease1):not(#ease2):not(#ease3):not(#ease4):not(#ansbut)::before,
+input[type="button"]::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg,transparent 30%,rgba(255,255,255,0.10) 50%,transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 0.5s var(--ease-out);
+    pointer-events: none;
+}
+button:not(#ease1):not(#ease2):not(#ease3):not(#ease4):not(#ansbut):hover::before,
+input[type="button"]:hover::before {
+    transform: translateX(120%);
+}
+button:not(#ease1):not(#ease2):not(#ease3):not(#ease4):not(#ansbut):hover,
+input[type="button"]:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-focus);
+    transform: translateY(-1px);
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar              { width: 5px; height: 5px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: rgba(255,255,255,0.10); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover  { background: rgba(255,255,255,0.20); }
+
+/* ── Tables (used in stats / browser preview) ───────────────────────── */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+th {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+td {
+    padding: 10px 14px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-hover); }
+
+/* ── Tooltip / popups ───────────────────────────────────────────────── */
+.tooltip,
+[role="tooltip"],
+.popover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 12px;
+    box-shadow: var(--shadow-elevated);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+/* ── Card stats bar (shown in reviewer) ─────────────────────────────── */
+#stats,
+#deckname,
+.studyStats {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-align: center;
+    padding: 6px 0;
+}
+
+/* ── Night mode / existing dark overrides — ensure Comet wins ────────── */
+.night_mode body,
+body.night_mode {
+    background: var(--bg-wallpaper) !important;
+    color: var(--text-primary) !important;
+}
+
+/* ── Selection color ────────────────────────────────────────────────── */
+::selection {
+    background: var(--accent-dim);
+    color: var(--text-primary);
+}

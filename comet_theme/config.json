@@ -1,0 +1,16 @@
+{
+    "wallpaper_type":  "solid",
+    "wallpaper_solid": "#091717",
+    "wallpaper_grad_from":  "#091717",
+    "wallpaper_grad_to":    "#0d2030",
+    "wallpaper_grad_angle": 135,
+    "wallpaper_image_path": "",
+    "accent":          "#21808d",
+    "bg_base":         "#091717",
+    "bg_card":         "#162c2c",
+    "text_primary":    "#fbfaf4",
+    "noise_opacity":   0.035,
+    "noise_enabled":   true,
+    "font_ui":         "Inter",
+    "font_display":    "Newsreader"
+}

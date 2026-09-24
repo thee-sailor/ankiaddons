@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+:root {
+  --bg:     #060a12;
+  --s1:     #0d1420;
+  --s2:     #131c2e;
+  --s3:     #182338;
+  --cyan:   #00d4ff;
+  --violet: #7c3aed;
+  --green:  #10d98a;
+  --amber:  #f59e0b;
+  --rose:   #f43f5e;
+  --text:   #e2e8f0;
+  --muted:  #4b6280;
+  --muted2: #8899aa;
+  --border: rgba(0,212,255,0.13);
+  --shadow: 0 8px 22px rgba(0,0,0,.38);
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { width:100%; height:100%; overflow:hidden; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:13px; display:flex; flex-direction:column;
+  position:relative;
+}
+
+/* ── PARTICLES ─────────────────────────────────────────── */
+#pCanvas { position:absolute; inset:0; z-index:0; pointer-events:none; }
+
+/* ── LAYOUT ────────────────────────────────────────────── */
+.layout {
+  position:relative; z-index:1;
+  display:flex; flex-direction:column; height:100%; overflow:hidden;
+}
+
+/* ── HEADER ────────────────────────────────────────────── */
+.hdr {
+  padding:10px 10px 8px;
+  border-bottom:1px solid var(--border);
+  background:rgba(6,10,18,.9);
+  backdrop-filter:blur(12px);
+  flex-shrink:0;
+}
+.hdr-row { display:flex; align-items:center; gap:9px; }
+
+/* Status orb */
+.orb {
+  width:28px; height:28px; flex-shrink:0; border-radius:50%;
+  position:relative;
+  background:radial-gradient(circle at 32% 28%, #1a2740, var(--s1));
+  border:1px solid rgba(0,212,255,.25);
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px;
+  box-shadow:0 0 0 rgba(0,212,255,0);
+  transition:box-shadow .35s, border-color .35s;
+}
+.orb::before {
+  content:''; position:absolute; inset:-3px; border-radius:50%;
+  background:conic-gradient(from 0deg, var(--cyan), var(--violet), var(--cyan));
+  opacity:0; transition:opacity .3s;
+  animation:spin 3.2s linear infinite; z-index:-1;
+}
+.orb.thinking::before { opacity:.9; animation-duration:.6s; }
+.orb.thinking { box-shadow:0 0 16px rgba(0,212,255,.45); border-color:transparent; }
+.orb.ready    { box-shadow:0 0 12px rgba(16,217,138,.4); border-color:rgba(16,217,138,.4); }
+.orb.error    { box-shadow:0 0 12px rgba(245,158,11,.4); border-color:rgba(245,158,11,.4); }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.hdr-text { flex:1; min-width:0; }
+.hdr-title { font-size:12px; font-weight:700; letter-spacing:.01em; }
+.hdr-sub {
+  font-size:10px; color:var(--muted2); margin-top:1px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  transition:color .3s;
+}
+.hdr-sub.thinking { color:var(--cyan); }
+.hdr-sub.ready    { color:var(--green); }
+.hdr-sub.error    { color:#fca5a5; }
+
+/* progress hairline — only visible while thinking */
+.progress {
+  height:2px; margin-top:7px; border-radius:1px; overflow:hidden;
+  background:rgba(255,255,255,.05); opacity:0; transition:opacity .3s;
+}
+.progress.thinking { opacity:1; }
+.progress span {
+  display:block; height:100%; width:38%; border-radius:1px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+  animation:slide 1.3s ease-in-out infinite;
+}
+@keyframes slide { 0%{margin-left:-40%} 100%{margin-left:100%} }
+
+/* Overflow menu */
+.menu-wrap { position:relative; flex-shrink:0; }
+.icon-btn {
+  width:26px; height:26px; border-radius:7px; border:1px solid transparent;
+  background:transparent; color:var(--muted2); font-size:15px; font-weight:700;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.icon-btn:hover { background:rgba(255,255,255,.06); color:var(--text); border-color:rgba(255,255,255,.08); }
+.icon-btn:disabled { opacity:.32; cursor:not-allowed; }
+.menu-pop {
+  position:absolute; top:32px; right:0; min-width:168px;
+  background:var(--s2); border:1px solid rgba(0,212,255,.15);
+  border-radius:10px; box-shadow:var(--shadow);
+  padding:5px; display:none; flex-direction:column; gap:1px;
+  z-index:50;
+}
+.menu-pop.open { display:flex; }
+.menu-pop button {
+  text-align:left; padding:7px 9px; border-radius:7px; border:none;
+  background:transparent; color:var(--text); font-size:11.5px; font-family:inherit;
+  cursor:pointer; display:flex; align-items:center; gap:7px;
+}
+.menu-pop button:hover { background:rgba(0,212,255,.09); }
+
+/* ── HISTORY DRAWER (feature: persistent chat sessions) ──── */
+.drawer-backdrop {
+  position:absolute; inset:0; background:rgba(0,0,0,.5); z-index:55;
+  opacity:0; pointer-events:none; transition:opacity .25s;
+}
+.drawer-backdrop.show { opacity:1; pointer-events:auto; }
+.drawer {
+  position:absolute; top:0; left:0; bottom:0; width:84%; max-width:280px;
+  background:var(--s1); border-right:1px solid rgba(0,212,255,.15);
+  z-index:60; transform:translateX(-100%);
+  transition:transform .28s cubic-bezier(.4,0,.2,1);
+  box-shadow:var(--shadow); display:flex; flex-direction:column;
+}
+.drawer.open { transform:translateX(0); }
+.drawer-hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 10px 8px; border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.drawer-title { font-size:12px; font-weight:700; }
+.new-session-btn {
+  margin:9px 10px; padding:8px 10px; border-radius:9px;
+  border:1px dashed rgba(0,212,255,.35); background:rgba(0,212,255,.06);
+  color:var(--cyan); font-size:11px; font-weight:700; font-family:inherit;
+  cursor:pointer; flex-shrink:0; transition:background .18s, border-color .18s;
+}
+.new-session-btn:hover { background:rgba(0,212,255,.12); border-color:var(--cyan); }
+.drawer-list { flex:1; overflow-y:auto; padding-bottom:8px; }
+.drawer-empty { padding:16px 12px; font-size:10.5px; color:var(--muted2); text-align:center; }
+.session-item {
+  display:flex; align-items:center; gap:6px;
+  margin:2px 6px; padding:8px 9px; border-radius:9px; cursor:pointer;
+  border:1px solid transparent;
+}
+.session-item:hover { background:rgba(255,255,255,.05); }
+.session-item.active { background:rgba(0,212,255,.09); border-color:rgba(0,212,255,.25); }
+.si-body { flex:1; min-width:0; }
+.si-title { font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.si-meta { font-size:9px; color:var(--muted2); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.si-del {
+  opacity:0; flex-shrink:0; width:20px; height:20px; border-radius:6px;
+  border:none; background:transparent; color:var(--muted2); font-size:10px;
+  cursor:pointer; transition:opacity .15s, color .15s, background .15s;
+}
+.session-item:hover .si-del { opacity:1; }
+.si-del:hover { color:var(--rose); background:rgba(244,63,94,.12); }
+
+/* model badge on AI messages */
+.model-badge { font-size:8px; opacity:.55; margin-left:5px; font-weight:600; text-transform:none; letter-spacing:0; }
+
+/* inline images inside AI responses */
+.msg-img { max-width:100%; border-radius:8px; margin:6px 0; display:block; border:1px solid rgba(255,255,255,.08); }
+
+/* Card chip — replaces the old fake skeleton minimap */
+.chip {
+  display:none; align-items:center; gap:9px;
+  margin-top:8px; padding:7px 9px;
+  background:linear-gradient(135deg, rgba(19,28,46,.85), rgba(13,20,32,.85));
+  border:1px solid rgba(255,255,255,.06);
+  border-left:2px solid var(--cyan);
+  border-radius:8px;
+}
+.chip.show { display:flex; }
+.chip-icon {
+  width:26px; height:26px; border-radius:6px; flex-shrink:0;
+  background:rgba(0,212,255,.08); border:1px solid rgba(0,212,255,.16);
+  display:flex; align-items:center; justify-content:center; font-size:12px;
+}
+.chip-body { flex:1; min-width:0; }
+.chip-deck { font-size:8.5px; font-weight:700; letter-spacing:.09em; color:var(--cyan); opacity:.8; text-transform:uppercase; }
+.chip-front { font-size:11px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.chip-meta { font-size:9px; color:var(--muted2); flex-shrink:0; text-align:right; max-width:80px; }
+
+/* ── ACTIONS — single merged row ──────────────────────────── */
+.actions {
+  padding:7px 8px; border-bottom:1px solid var(--border);
+  flex-shrink:0; background:rgba(6,10,18,.72); backdrop-filter:blur(8px);
+}
+.action-row {
+  display:flex; gap:5px; overflow-x:auto; overflow-y:hidden;
+  scrollbar-width:thin; scrollbar-color:rgba(0,212,255,.2) transparent;
+  padding-bottom:2px;
+}
+.action-row::-webkit-scrollbar { height:3px; }
+.action-row::-webkit-scrollbar-thumb { background:rgba(0,212,255,.25); border-radius:2px; }
+
+.pill {
+  position:relative; overflow:hidden; flex-shrink:0;
+  padding:6px 11px; border-radius:20px;
+  border:1px solid rgba(0,212,255,.18);
+  background:rgba(13,20,32,.85);
+  color:#93c5fd; font-size:10.5px; font-weight:700; font-family:inherit;
+  cursor:pointer; letter-spacing:.01em; white-space:nowrap;
+  transition:border-color .18s, background .18s, transform .12s, box-shadow .18s;
+}
+.pill::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.14) 50%,transparent 70%);
+  transform:translateX(-130%); transition:transform .5s ease;
+}
+.pill:hover         { border-color:var(--cyan); background:rgba(0,212,255,.08); transform:translateY(-1px); box-shadow:0 0 10px rgba(0,212,255,.14); }
+.pill:hover::before { transform:translateX(130%); }
+.pill:active         { transform:translateY(0); }
+.pill:disabled       { opacity:.32; cursor:not-allowed; transform:none; box-shadow:none; }
+.pill.accent { color:#c4b5fd; border-color:rgba(124,58,237,.3); }
+.pill.accent:hover { border-color:var(--violet); background:rgba(124,58,237,.09); }
+
+/* ── CHAT ───────────────────────────────────────────────── */
+.chat {
+  flex:1; overflow-y:auto; min-height:0;
+  padding:10px 8px 4px;
+  display:flex; flex-direction:column; gap:9px;
+  background:rgba(6,10,18,.6);
+  scrollbar-width:thin; scrollbar-color:rgba(0,212,255,.18) transparent;
+}
+.chat::-webkit-scrollbar { width:3px; }
+.chat::-webkit-scrollbar-thumb { background:rgba(0,212,255,.2); border-radius:2px; }
+
+.msg { display:flex; gap:7px; max-width:96%; }
+.msg.user { align-self:flex-end;  flex-direction:row-reverse; }
+.msg.ai   { align-self:flex-start; }
+.msg.sys  { align-self:center; max-width:90%; }
+
+.avatar {
+  width:20px; height:20px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; margin-top:14px;
+}
+.msg.user .avatar { background:rgba(0,212,255,.14); border:1px solid rgba(0,212,255,.3); }
+.msg.ai   .avatar { background:linear-gradient(135deg, var(--violet), var(--cyan)); }
+
+.msg-col { display:flex; flex-direction:column; min-width:0; }
+.msg.user .msg-col { align-items:flex-end; }
+.msg.ai   .msg-col { align-items:flex-start; }
+
+.msg-lbl { font-size:9px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; margin-bottom:3px; color:var(--muted2); }
+.msg.user .msg-lbl { color:var(--cyan); opacity:.75; }
+.msg.ai   .msg-lbl { color:#a78bfa; }
+
+.bubble {
+  padding:8px 12px; border-radius:13px;
+  font-size:11.5px; line-height:1.55;
+  backdrop-filter:blur(10px);
+}
+.msg.user .bubble {
+  background:rgba(0,212,255,.09); border:1px solid rgba(0,212,255,.2);
+  color:#cceeff; border-bottom-right-radius:3px;
+}
+.msg.ai .bubble {
+  background:rgba(124,58,237,.09); border:1px solid rgba(124,58,237,.2);
+  color:#ddd8ff; border-bottom-left-radius:3px;
+}
+.msg.sys .bubble {
+  background:rgba(75,98,128,.15); border:1px solid rgba(75,98,128,.2);
+  color:var(--muted2); font-size:10px; border-radius:20px; padding:4px 12px;
+}
+
+.scursor {
+  display:inline-block; width:2px; height:12px;
+  background:var(--cyan); margin-left:2px; vertical-align:middle;
+  animation:blink .7s step-end infinite;
+}
+@keyframes blink { 50%{opacity:0} }
+
+.dots span {
+  display:inline-block; width:5px; height:5px; border-radius:50%;
+  background:var(--cyan); margin:0 2px;
+  animation:bounce .9s ease-in-out infinite;
+}
+.dots span:nth-child(2) { animation-delay:.15s; }
+.dots span:nth-child(3) { animation-delay:.3s; }
+@keyframes bounce { 0%,80%,100%{transform:scale(.6);opacity:.35} 40%{transform:scale(1);opacity:1} }
+
+/* Semantic colour lanes */
+.lane { border-left:2px solid; padding:4px 0 4px 8px; margin:5px 0; border-radius:0 4px 4px 0; }
+.lane.explain { border-color:var(--cyan);  background:rgba(0,212,255,.04);  color:#c0e8ff; }
+.lane.clinical{ border-color:var(--green); background:rgba(16,217,138,.04); color:#a8f0d0; }
+.lane.warn    { border-color:var(--amber); background:rgba(245,158,11,.04); color:#fde68a; }
+.lane-tag { font-size:8px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; opacity:.7; margin-bottom:2px; }
+.lane.explain  .lane-tag { color:var(--cyan);  }
+.lane.clinical .lane-tag { color:var(--green); }
+.lane.warn     .lane-tag { color:var(--amber); }
+
+/* ── WAVEFORM ──────────────────────────────────────────── */
+.wave-bar {
+  display:none; align-items:center; gap:8px; padding:5px 8px;
+  background:rgba(6,10,18,.82); border-top:1px solid rgba(0,212,255,.1);
+  flex-shrink:0;
+}
+.wave-bar.show { display:flex; }
+#waveCanvas { flex:1; display:block; }
+.wave-stop {
+  font-size:10px; padding:3px 9px; border-radius:20px;
+  border:1px solid rgba(0,212,255,.3); background:rgba(0,212,255,.1);
+  color:var(--cyan); cursor:pointer; font-family:inherit; font-weight:700; flex-shrink:0;
+}
+
+/* ── RESPONSE ACTIONS — icon-only, compact ───────────────── */
+.resp {
+  display:none; gap:5px; padding:5px 8px;
+  background:rgba(6,10,18,.75); border-top:1px solid var(--border);
+  flex-shrink:0; align-items:center;
+}
+.resp.show { display:flex; }
+.ricon {
+  width:26px; height:26px; border-radius:8px;
+  border:1px solid rgba(255,255,255,.08); background:transparent;
+  color:var(--muted2); cursor:pointer; font-size:12px;
+  display:flex; align-items:center; justify-content:center;
+  transition:color .18s, border-color .18s, background .18s, transform .12s;
+}
+.ricon:hover { color:var(--text); border-color:rgba(255,255,255,.2); background:rgba(255,255,255,.05); transform:translateY(-1px); }
+.ricon.speak:hover    { color:var(--cyan);  border-color:rgba(0,212,255,.4); }
+.ricon.good:hover     { color:var(--green); border-color:rgba(16,217,138,.4); }
+.ricon.bad:hover      { color:var(--rose);  border-color:rgba(244,63,94,.4); }
+.ricon.add:hover      { color:#fbbf24;      border-color:rgba(251,191,36,.4); }
+
+/* ── INPUT ─────────────────────────────────────────────── */
+.input-row {
+  display:flex; align-items:center; gap:6px; padding:7px 8px 9px;
+  background:rgba(6,10,18,.9); backdrop-filter:blur(8px); flex-shrink:0;
+}
+.toggle {
+  width:32px; height:32px; border-radius:9px; flex-shrink:0;
+  border:1px solid rgba(255,255,255,.09); background:rgba(13,20,32,.8);
+  color:var(--muted2); font-size:13px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:color .18s, border-color .18s, background .18s;
+}
+.toggle:hover { color:var(--text); }
+.toggle.on { color:var(--green); border-color:rgba(16,217,138,.4); background:rgba(16,217,138,.08); }
+
+#ci {
+  flex:1; background:rgba(13,20,32,.95);
+  border:1px solid rgba(0,212,255,.17); border-radius:9px;
+  padding:8px 11px; color:var(--text); font-family:inherit; font-size:12px;
+  outline:none; transition:border-color .2s;
+}
+#ci:focus { border-color:rgba(0,212,255,.45); }
+#ci::placeholder { color:var(--muted); }
+#ci:disabled { opacity:.5; }
+
+#sb {
+  width:32px; height:32px; border-radius:9px; border:none; flex-shrink:0;
+  background:#ea580c; color:#fff; font-size:14px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:background .2s, transform .12s;
+}
+#sb:hover:not(:disabled) { background:#f97316; transform:translateY(-1px); }
+#sb:disabled { background:#1e2a3a; color:var(--muted); cursor:not-allowed; }
+</style>
+</head>
+<body>
+
+<canvas id="pCanvas"></canvas>
+
+<div class="layout">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-row">
+      <div class="orb" id="orb">⚡</div>
+      <div class="hdr-text">
+        <div class="hdr-title">AI Assistant</div>
+        <div class="hdr-sub" id="hSub">Ask about this card</div>
+      </div>
+      <button class="icon-btn" id="histBtn" title="History" onclick="openHistory()">🕘</button>
+      <div class="menu-wrap">
+        <button class="icon-btn" id="menuBtn" title="More" onclick="toggleMenu(event)">&#8942;</button>
+        <div class="menu-pop" id="menuPop">
+          <button onclick="bridge('showSession',{});closeMenu()">📊&nbsp; Review stats</button>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="progress"><span></span></div>
+    <!-- Card chip -->
+    <div class="chip" id="chip">
+      <div class="chip-icon" id="chipIcon">📄</div>
+      <div class="chip-body">
+        <div class="chip-deck" id="chipDeck"></div>
+        <div class="chip-front" id="chipFront"></div>
+      </div>
+      <div class="chip-meta" id="chipMeta"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY DRAWER -->
+  <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeHistory()"></div>
+  <div class="drawer" id="historyDrawer">
+    <div class="drawer-hdr">
+      <div class="drawer-title">History</div>
+      <button class="icon-btn" title="Close" onclick="closeHistory()">✕</button>
+    </div>
+    <button class="new-session-btn" onclick="createNewSession()">+ New session</button>
+    <div class="drawer-list" id="drawerList"></div>
+  </div>
+
+  <!-- ACTIONS — one merged, scrollable row -->
+  <div class="actions">
+    <div class="action-row" id="actionRow">
+      <button class="pill" onclick="qa('Explain this flashcard clearly with clinical context.')">💡 Explain</button>
+      <button class="pill accent" onclick="startQuiz()">🎯 Quiz</button>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat" id="chat"></div>
+
+  <!-- WAVEFORM -->
+  <div class="wave-bar" id="waveBar">
+    <canvas id="waveCanvas" height="32"></canvas>
+    <button class="wave-stop" onclick="stopSpeak()">■ Stop</button>
+  </div>
+
+  <!-- RESPONSE ACTIONS -->
+  <div class="resp" id="resp">
+    <button class="ricon speak" title="Speak reply" onclick="speakReply()">🔊</button>
+    <button class="ricon good"  title="Got it"       onclick="bridge('gotit',{})">✓</button>
+    <button class="ricon bad"   title="Confused"      onclick="bridge('confused',{})">😕</button>
+    <button class="ricon add"   title="Save as card"  onclick="bridge('addCard',{reply:S.lastReply,ctx:S.cardCtx})">➕</button>
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-row">
+    <button class="toggle" id="webBtn" title="Web search: off" onclick="toggleWeb()">🔍</button>
+    <input id="ci" type="text" placeholder="Ask anything about this card…"
+           onkeydown="if(event.key==='Enter')sendMsg()">
+    <button id="sb" onclick="sendMsg()" title="Send">➤</button>
+  </div>
+
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────
+const S = {
+  busy:false, webOn:false,
+  lastReply:'', cardCtx:'',
+  streamBubble:null, streamBuf:'', streamMsgEl:null,
+};
+const MODEL_SHORT = {
+  'llama-3.1-8b-instant':'8B · fast',
+  'llama-3.3-70b-versatile':'70B · reasoning',
+  'mixtral-8x7b-32768':'Mixtral · long-ctx',
+};
+function modelBadge(m){ return m ? ' <span class="model-badge">'+esc(MODEL_SHORT[m]||m)+'</span>' : ''; }
+let activeSessionId = null;
+
+// ── PARTICLES ─────────────────────────────────────────────
+(function(){
+  const c=document.getElementById('pCanvas');
+  const ctx=c.getContext('2d');
+  let spd=1;
+  window._pSpeed=s=>spd=s;
+  function resize(){ c.width=window.innerWidth; c.height=window.innerHeight; }
+  resize(); window.addEventListener('resize',resize);
+  const pts=Array.from({length:40},()=>({
+    x:Math.random()*window.innerWidth,
+    y:Math.random()*window.innerHeight,
+    r:.5+Math.random()*1.2,
+    vx:(Math.random()-.5)*.24,
+    vy:(Math.random()-.5)*.24,
+    o:.05+Math.random()*.13,
+  }));
+  (function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    pts.forEach(p=>{
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,212,255,${p.o})`; ctx.fill();
+      p.x+=p.vx*spd; p.y+=p.vy*spd;
+      if(p.x<0||p.x>c.width)  p.vx*=-1;
+      if(p.y<0||p.y>c.height) p.vy*=-1;
+    });
+    requestAnimationFrame(draw);
+  })();
+})();
+
+// ── WAVEFORM ──────────────────────────────────────────────
+const WV={playing:false,timer:null};
+function startWave(ms){
+  const bar=document.getElementById('waveBar');
+  const c=document.getElementById('waveCanvas');
+  bar.classList.add('show');
+  c.width=Math.max(40,bar.offsetWidth-80);
+  WV.playing=true; drawWave();
+  clearTimeout(WV.timer);
+  if(ms) WV.timer=setTimeout(stopWave,ms);
+}
+function stopWave(){
+  WV.playing=false;
+  document.getElementById('waveBar').classList.remove('show');
+}
+function stopSpeak(){
+  stopWave();
+  bridge('stopSpeak',{});
+}
+function drawWave(){
+  if(!WV.playing) return;
+  const c=document.getElementById('waveCanvas');
+  const ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,32);
+  const t=Date.now()/420;
+  const bars=Math.floor(c.width/6);
+  for(let i=0;i<bars;i++){
+    const h=Math.max(2,12*Math.abs(Math.sin(i*.45+t))+3*Math.abs(Math.sin(i*.22+t*1.9)));
+    ctx.fillStyle='rgba(0,212,255,.75)';
+    ctx.beginPath(); ctx.roundRect(i*6,16-h/2,4,h,2); ctx.fill();
+  }
+  requestAnimationFrame(drawWave);
+}
+function speakReply(){
+  const t=S.lastReply||'';
+  if(!t) return;
+  const words=t.trim().split(/\s+/).length;
+  const ms=Math.min(15000,Math.max(1800,(words/150)*60000));
+  startWave(ms);
+  bridge('speak',{text:t});
+}
+
+// ── HEADER STATE ───────────────────────────────────────────
+function setState(s){
+  // s: idle | thinking | ready | error
+  document.getElementById('orb').className='orb'+(s!=='idle'?' '+s:'');
+  const sub=document.getElementById('hSub');
+  sub.className='hdr-sub'+(s!=='idle'?' '+s:'');
+  const labels={idle:'Ask about this card',thinking:'Thinking…',ready:'Response ready',error:'Something went wrong'};
+  sub.textContent=labels[s]||'Ask about this card';
+  document.getElementById('progress').className='progress'+(s==='thinking'?' thinking':'');
+  window._pSpeed(s==='thinking'?4:1);
+}
+
+// ── OVERFLOW MENU ────────────────────────────────────────
+function toggleMenu(e){ e.stopPropagation(); document.getElementById('menuPop').classList.toggle('open'); }
+function closeMenu(){ document.getElementById('menuPop').classList.remove('open'); }
+document.addEventListener('click',e=>{
+  const pop=document.getElementById('menuPop');
+  if(pop.classList.contains('open') && !pop.contains(e.target) && e.target.id!=='menuBtn') closeMenu();
+});
+
+// ── CARD CHIP ─────────────────────────────────────────────
+function updateChip(d){
+  const el=document.getElementById('chip');
+  if(!d||!d.front){ el.classList.remove('show'); return; }
+  el.classList.add('show');
+  document.getElementById('chipIcon').textContent = d.hasImage ? '🖼' : '📄';
+  document.getElementById('chipDeck').textContent  = d.deck || '';
+  document.getElementById('chipFront').textContent = d.front;
+  document.getElementById('chipMeta').textContent  = d.meta || '';
+}
+
+// ── CHAT HELPERS ───────────────────────────────────────────
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function md(t){
+  t=esc(t);
+  t=t.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,(m,alt,url)=>
+    `<img src="${url}" alt="${alt}" class="msg-img" loading="lazy" onerror="this.remove()">`);
+  t=t.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  t=t.replace(/\*(.+?)\*/g,'<i>$1</i>');
+  return t.split('\n').map(l=>{
+    const s=l.trim();
+    if(s.startsWith('- ')||s.startsWith('• ')||s.startsWith('* ')) return '• '+s.slice(2)+'<br>';
+    return s?s+'<br>':'<br>';
+  }).join('');
+}
+
+function lanes(html){
+  const lines=html.split('<br>');
+  const out=[]; let lType=null, buf=[];
+  const flush=()=>{
+    if(!buf.length) return;
+    if(lType){
+      const tags={explain:'Explanation',clinical:'Clinical Pearl',warn:'Caution'};
+      out.push(`<div class="lane ${lType}"><div class="lane-tag">${tags[lType]}</div>${buf.join('<br>')}</div>`);
+    } else { out.push(buf.join('<br>')); }
+    buf=[];
+  };
+  lines.forEach(ln=>{
+    const p=ln.replace(/<[^>]+>/g,'').trim().toLowerCase();
+    let t=null;
+    if(/^(note:|warning:|caution:|important:|caveat:|remember:)/.test(p)) t='warn';
+    else if(/^(clinical|in practice|clinically|pearl:|at the bedside|bedside tip)/.test(p)) t='clinical';
+    else if(/^(•|explanation:|mechanism:|pathophys|definition:|step \d)/.test(p)) t='explain';
+    if(t&&t!==lType){ flush(); lType=t; }
+    else if(!t&&lType&&p===''){ flush(); lType=null; }
+    buf.push(ln);
+  });
+  flush();
+  return out.join('');
+}
+
+function scroll(){ const a=document.getElementById('chat'); a.scrollTop=a.scrollHeight; }
+
+function appendMsg(cls,labelHtml,bubbleHtml){
+  const a=document.getElementById('chat');
+  const d=document.createElement('div'); d.className='msg '+cls;
+  if(cls==='sys'){
+    d.innerHTML=`<div class="bubble">${bubbleHtml}</div>`;
+  } else {
+    const av = cls==='user' ? '🧑' : '⚡';
+    d.innerHTML=`<div class="avatar">${av}</div><div class="msg-col"><div class="msg-lbl">${labelHtml}</div><div class="bubble">${bubbleHtml}</div></div>`;
+  }
+  d.style.opacity='0'; d.style.transform='translateY(4px)';
+  a.appendChild(d);
+  requestAnimationFrame(()=>{
+    d.style.transition='opacity .22s ease, transform .22s ease';
+    d.style.opacity='1'; d.style.transform='none';
+  });
+  scroll(); return d;
+}
+function appendSys(t){ appendMsg('sys','',esc(t)); }
+function appendUser(t){ appendMsg('user','You',esc(t)); }
+function appendThinking(){
+  const a=document.getElementById('chat');
+  const d=document.createElement('div'); d.className='msg ai'; d.id='think';
+  d.innerHTML='<div class="avatar">⚡</div><div class="msg-col"><div class="msg-lbl">Groq</div><div class="bubble"><div class="dots"><span></span><span></span><span></span></div></div></div>';
+  a.appendChild(d); scroll();
+}
+function rmThinking(){ const e=document.getElementById('think'); if(e)e.remove(); }
+
+function appendToken(tok){
+  if(!S.streamBubble){
+    rmThinking();
+    const d=document.createElement('div'); d.className='msg ai';
+    d.innerHTML='<div class="avatar">⚡</div><div class="msg-col"><div class="msg-lbl">Groq</div></div>';
+    const b=document.createElement('div'); b.className='bubble';
+    d.querySelector('.msg-col').appendChild(b);
+    document.getElementById('chat').appendChild(d);
+    S.streamBubble=b; S.streamBuf=''; S.streamMsgEl=d;
+  }
+  S.streamBuf+=tok;
+  S.streamBubble.innerHTML=esc(S.streamBuf)+'<span class="scursor"></span>';
+  scroll();
+}
+
+function finalizeStream(payload){
+  const text  = (payload && typeof payload==='object') ? payload.text  : payload;
+  const model = (payload && typeof payload==='object') ? payload.model : null;
+  if(S.streamBubble){
+    S.streamBubble.innerHTML=lanes(md(text));
+    if(model && S.streamMsgEl){
+      const lbl=S.streamMsgEl.querySelector('.msg-lbl');
+      if(lbl) lbl.insertAdjacentHTML('beforeend', modelBadge(model));
+    }
+    S.streamBubble=null; S.streamMsgEl=null;
+  }
+  S.lastReply=text;
+  document.getElementById('resp').classList.add('show');
+  setState('ready'); S.busy=false; setEnabled(true); scroll();
+}
+
+function onError(text){
+  rmThinking();
+  if(S.streamBubble){ S.streamBubble.closest('.msg').remove(); S.streamBubble=null; }
+  appendMsg('sys','','<span style="color:#f87171;white-space:pre-wrap;">'+esc(text)+'</span>');
+  setState('error'); S.busy=false; setEnabled(true);
+}
+
+// ── ACTIONS ────────────────────────────────────────────────
+function sendMsg(){
+  const v=document.getElementById('ci').value.trim();
+  if(!v||S.busy) return;
+  document.getElementById('ci').value='';
+  doSend(v);
+}
+function qa(p){ if(!S.busy) doSend(p); }
+function startQuiz(){
+  if(S.busy) return;
+  const prompt =
+    "Quiz me on this flashcard. Ask multiple-choice questions with exactly 5 options (A-E), " +
+    "one question at a time, and wait for my answer before giving the next question. " +
+    "Keep track of every point/concept I get right or wrong. If I answer a question incorrectly, " +
+    "re-ask an equivalent question on that same point after 3 more questions have passed. " +
+    "After I answer each question, tell me whether I was correct and briefly explain why each " +
+    "of the 5 options is right or wrong. Start with question 1 now.";
+  doSend(prompt, {quiz:true});
+}
+function doSend(text, opts){
+  if(S.busy) return;
+  opts=opts||{};
+  S.busy=true; setEnabled(false);
+  appendUser(text); appendThinking(); setState('thinking');
+  bridge('chat', Object.assign({text,webOn:S.webOn}, opts));
+}
+
+// ── HISTORY DRAWER ────────────────────────────────────────
+function openHistory(){
+  document.getElementById('historyDrawer').classList.add('open');
+  document.getElementById('drawerBackdrop').classList.add('show');
+  bridge('listSessions',{});
+}
+function closeHistory(){
+  document.getElementById('historyDrawer').classList.remove('open');
+  document.getElementById('drawerBackdrop').classList.remove('show');
+}
+function createNewSession(){
+  bridge('newSession',{});
+  closeHistory();
+}
+function selectSession(id){
+  bridge('loadSession',{id});
+  closeHistory();
+}
+function deleteSession(id){
+  bridge('deleteSession',{id});
+}
+function renderSessions(list){
+  const el=document.getElementById('drawerList');
+  el.innerHTML='';
+  if(!list||!list.length){
+    el.innerHTML='<div class="drawer-empty">No past sessions yet — questions you ask get saved here automatically.</div>';
+    return;
+  }
+  list.forEach(s=>{
+    const d=document.createElement('div');
+    d.className='session-item'+(s.id===activeSessionId?' active':'');
+    d.innerHTML=
+      '<div class="si-body">'+
+        '<div class="si-title">'+esc(s.title||'Untitled')+'</div>'+
+        '<div class="si-meta">'+esc(s.deck||'')+(s.deck?' · ':'')+esc(s.when||'')+'</div>'+
+      '</div>'+
+      '<button class="si-del" title="Delete">✕</button>';
+    d.querySelector('.si-body').onclick=()=>selectSession(s.id);
+    d.querySelector('.si-del').onclick=(e)=>{ e.stopPropagation(); deleteSession(s.id); };
+    el.appendChild(d);
+  });
+}
+function renderHistory(payload){
+  activeSessionId=payload.id;
+  document.getElementById('chat').innerHTML='';
+  document.getElementById('resp').classList.remove('show');
+  S.lastReply=''; S.streamBubble=null; S.streamMsgEl=null; S.busy=false;
+  (payload.turns||[]).forEach(t=>{
+    if(t.role==='user') appendMsg('user','You',esc(t.content));
+    else appendMsg('ai','Groq',lanes(md(t.content)));
+  });
+  const lastAi=[...(payload.turns||[])].reverse().find(t=>t.role==='assistant');
+  if(lastAi){ S.lastReply=lastAi.content; document.getElementById('resp').classList.add('show'); }
+  setState('idle'); setEnabled(true);
+  appendSys('Session loaded'+(payload.deck?' · '+payload.deck:''));
+}
+function resetChatUI(){
+  activeSessionId=null;
+  document.getElementById('chat').innerHTML='';
+  document.getElementById('resp').classList.remove('show');
+  S.lastReply=''; S.streamBubble=null; S.streamMsgEl=null; S.busy=false;
+  appendSys('New session started — ask anything about this card.');
+  setState('idle'); setEnabled(true);
+}
+function toggleWeb(){
+  S.webOn=!S.webOn;
+  const b=document.getElementById('webBtn');
+  b.className='toggle'+(S.webOn?' on':'');
+  b.title='Web search: '+(S.webOn?'on':'off');
+}
+
+function setEnabled(on){
+  ['ci','sb','histBtn'].forEach(id=>document.getElementById(id).disabled=!on);
+  document.querySelectorAll('.pill').forEach(b=>b.disabled=!on);
+}
+
+// ── BRIDGE JS → Python ─────────────────────────────────────
+function bridge(action,data){
+  console.log('__ANKIAI__:'+action+':'+JSON.stringify(data));
+}
+
+// ── CALLED FROM PYTHON ─────────────────────────────────────
+function loadCard(d){
+  S.cardCtx=(d.front||'')+'\n'+(d.back||'');
+  activeSessionId=null;
+  document.getElementById('chat').innerHTML='';
+  document.getElementById('resp').classList.remove('show');
+  S.lastReply=''; S.streamBubble=null; S.streamMsgEl=null; S.busy=false;
+  updateChip(d);
+  appendSys('Card loaded'+(d.deck?' · '+d.deck:'')+' — ask anything or tap a quick action.');
+  setState('idle'); setEnabled(true);
+}
+</script>
+</body>
+</html>
