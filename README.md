@@ -23,7 +23,7 @@ No coding needed. If you can copy and paste a folder, you can do this. 🙂
 2. Click the green **`< > Code`** button (near the top-right of the file list).
 3. Click **Download ZIP**.
 
-   > 📷 *Screenshot placeholder — the green “Code” button with “Download ZIP”.*
+   ![GitHub's green Code button with the Download ZIP option](images/01-download-zip.png)
 
 4. Find the downloaded file (usually in your **Downloads** folder). It's called
    `ankiaddons-main.zip`.
@@ -40,7 +40,7 @@ No coding needed. If you can copy and paste a folder, you can do this. 🙂
 2. In the top menu click **Tools → Add-ons**.
 3. In the window that opens, click **View Files**.
 
-   > 📷 *Screenshot placeholder — the Tools → Add-ons window with “View Files”.*
+   ![Anki's Tools → Add-ons window, with the View Files button](images/anki_addons_window.png)
 
    - A folder called **`addons21`** opens. This is where add-ons live.
    - *(If “View Files” is greyed out, click any add-on in the list first, then
@@ -69,6 +69,10 @@ That's it — the add-ons are installed. ✅
 Most work immediately. A few need one small step — follow the ones you
 installed.
 
+Several add-ons add items to Anki's **Tools** menu:
+
+![Anki's Tools menu showing add-on entries](images/tools-menu.png)
+
 ### 📋 chatgpt_paste — paste ChatGPT notes with equations & images
 - **Setup:** none.
 - **How to use:** In ChatGPT, click **Copy** under a reply. In an Anki card
@@ -85,7 +89,7 @@ installed.
   magnifying-glass icon in the editor toolbar). Type a word; use ▲ / ▼ to jump
   between matches.
 
-  > 📷 *Screenshot placeholder — the search box in the editor toolbar.*
+  ![The find box showing a match count (2 / 5) and highlighted results](images/editor_field_search.png)
 
 ### 🍅 focus_music_pomodoro — study timer + focus music
 - **Setup (optional):** On the **Decks** screen, look at the bottom bar. Click
@@ -94,7 +98,15 @@ installed.
 - **How to use:** Click the tomato icon to start. It counts down and notifies
   you at each phase. Click the **phase name** to jump to any phase.
 
-  > 📷 *Screenshot placeholder — the bottom bar with the phase name and timer.*
+  ![The bottom bar showing the current phase name and countdown](images/pomodoro_bar.png)
+
+  *Click the phase name to jump to any session:*
+
+  ![The phase menu: Skip to next phase, or pick any phase](images/pomodoro_jump_menu.png)
+
+  *Build the whole cycle in Settings (⚙️):*
+
+  ![Pomodoro Settings with an editable list of phases](images/pomodoro_settings.png)
 
 ### 🤖 anki_ai_assistant — AI helper sidebar (needs a free key)
 This one needs a free **Groq** API key (takes ~2 minutes):
@@ -107,6 +119,8 @@ This one needs a free **Groq** API key (takes ~2 minutes):
    `"api_key": "gsk_your_key_here"`. Click **OK**.
 5. Restart Anki. Press **Ctrl+Shift+A** while reviewing to open the AI sidebar.
 - **Keep your key private** — don't share it.
+
+![The AI Assistant sidebar with Explain and Quiz actions](images/anki_ai_assistant.png)
 
 ### 💬 socrates_bar — send card text to ChatGPT
 - **Needs another add-on first:** the **“Add Dialog Web Browser”** add-on (from
@@ -124,6 +138,8 @@ This one needs a free **Groq** API key (takes ~2 minutes):
 - **Setup:** **Tools → Cap Daily Cards…**, choose your maximum, click **Apply**.
 - It then keeps each day under that limit automatically (extra cards move to
   future days).
+
+  ![The Daily Card Cap dialog showing today's cards capped](images/daily_cap.png)
 
 ### ✅ due_decks_filter — hide decks with nothing due
 - **Setup:** none.
