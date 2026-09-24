@@ -75,7 +75,9 @@ installed.
   field, press **Ctrl+V**. Equations, tables, arrows and images appear
   formatted automatically.
 
-  > 📷 *Screenshot placeholder — a card field showing a rendered equation.*
+  ![A ChatGPT equation rendered automatically in an Anki card field](images/chatgpt_paste_equation.png)
+
+  *Above: an equation copied from ChatGPT, rendered automatically after Ctrl+V.*
 
 ### 🔍 editor_field_search — find text while editing a card
 - **Setup:** none.
