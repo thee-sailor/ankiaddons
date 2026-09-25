@@ -21,6 +21,10 @@ from html.parser import HTMLParser
 _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
          "link", "meta", "param", "source", "track", "wbr"}
 
+# Attributes worth keeping on pass-through tags; ChatGPT's inline styles/classes
+# are dropped so pasted notes stay lean and adopt the card's own styling.
+_KEEP_ATTRS = {"src", "alt", "href", "colspan", "rowspan", "start", "title"}
+
 
 def _esc(s: str) -> str:
     return _html.escape(s, quote=False)
@@ -41,6 +45,8 @@ class _KatexCleaner(HTMLParser):
     def _starttag(self, tag, attrs, selfclose=False):
         parts = ["<" + tag]
         for k, v in attrs:
+            if k.lower() not in _KEEP_ATTRS:
+                continue
             if v is None:
                 parts.append(" " + k)
             else:

@@ -12,8 +12,11 @@ Paste from ChatGPT
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+import threading
+import urllib.request
 
 from aqt import gui_hooks, mw
 from aqt.editor import Editor
@@ -63,37 +66,61 @@ def _do_internal_paste(editor: Editor, html: str):
     QTimer.singleShot(150, _finish)
 
 
-def _render_after_paste(editor: Editor):
-    """Let Anki's native paste land first (it downloads/embeds images and keeps
-    tables, bold, headings), then clean up the math in the pasted field(s) with
-    the same tag-safe migration used on startup. Images survive because
-    migrate_field never touches HTML tags like <img>."""
-    def _cb():
-        note = getattr(editor, "note", None)
-        if note is None:
-            return
-        changed = False
-        for i, val in enumerate(note.fields):
-            new = migrate.migrate_field(val)
-            if new != val:
-                note.fields[i] = new
-                changed = True
-        if not changed:
-            return
-        try:
-            if getattr(note, "id", 0):
-                mw.col.update_note(note)
-        except Exception:
-            pass
-        try:
-            editor.loadNote()
-        except Exception:
-            pass
+def _img_ext(ctype: str, url: str) -> str:
+    c = (ctype or "").lower()
+    if "png" in c:
+        return ".png"
+    if "jpeg" in c or "jpg" in c:
+        return ".jpg"
+    if "gif" in c:
+        return ".gif"
+    if "webp" in c:
+        return ".webp"
+    if "svg" in c:
+        return ".svg"
+    m = re.search(r"\.(png|jpe?g|gif|webp|svg)", url.lower())
+    return "." + m.group(1) if m else ".png"
 
-    try:
-        editor.saveNow(_cb)
-    except Exception:
-        _cb()
+
+def _localize_and_paste(editor: Editor, html: str):
+    """Download any remote <img> into the collection's media folder, rewrite the
+    src to the local filename, then insert via an internal paste (which keeps the
+    <anki-mathjax> equations and images intact). Downloading runs off the UI
+    thread; media writes and the paste happen back on the main thread."""
+    urls = list(dict.fromkeys(re.findall(r'<img[^>]+\bsrc="([^"]+)"', html)))
+    remote = [u for u in urls if u.replace("&amp;", "&").startswith(("http://", "https://"))]
+
+    if not remote:
+        _do_internal_paste(editor, html)
+        return
+
+    tooltip("Fetching %d image(s)…" % len(remote), period=2500)
+
+    def _work():
+        fetched = {}
+        for u in remote:
+            real = u.replace("&amp;", "&")
+            try:
+                req = urllib.request.Request(real, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=25) as r:
+                    fetched[u] = (r.read(), r.headers.get("Content-Type", ""))
+            except Exception:
+                pass
+
+        def _finish():
+            out = html
+            for u, (data, ctype) in fetched.items():
+                try:
+                    name = "chatgpt-%s%s" % (hashlib.md5(data).hexdigest()[:16], _img_ext(ctype, u))
+                    fn = mw.col.media.write_data(name, data)
+                    out = out.replace('src="%s"' % u, 'src="%s"' % fn)
+                except Exception:
+                    pass
+            _do_internal_paste(editor, out)
+
+        mw.taskman.run_on_main(_finish)
+
+    threading.Thread(target=_work, daemon=True).start()
 
 
 def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
@@ -106,8 +133,6 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
         has_html = mime.hasHtml()
         html = mime.html() if has_html else ""
         text = mime.text() if mime.hasText() else ""
-        has_img = (mime.hasImage() or mime.hasUrls()
-                   or (has_html and "<img" in html.lower()))
     except Exception:
         return mime
 
@@ -115,29 +140,24 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
     if editor is None:
         return mime
 
-    # Best fix: clean ChatGPT's KaTeX HTML at the source. This removes the
-    # duplicated visible text, keeps the exact LaTeX (so sub/superscripts render
-    # correctly), and leaves images/tables intact for Anki's native paste.
+    # ChatGPT (KaTeX) content: fully take over the paste. Clean the math from the
+    # KaTeX annotations (no duplication, correct sub/superscripts), download the
+    # images locally, and insert internally so <anki-mathjax> survives.
     if has_html and katex.has_katex(html):
-        try:
-            mime.setHtml(katex.clean_katex_html(html))
-        except Exception:
-            pass
-        QTimer.singleShot(300, lambda: _render_after_paste(editor))
+        cleaned = katex.clean_katex_html(html)
+        QTimer.singleShot(0, lambda: _localize_and_paste(editor, cleaned))
+        return QMimeData()  # suppress Anki's own paste; we handle it entirely
+
+    # Other rich HTML (web pages, etc.) — let Anki paste it normally.
+    if has_html:
         return mime
 
-    if not _looks_like_markdown(text):
-        return mime  # nothing to render
+    # Plain-text Markdown (no HTML) — render it ourselves.
+    if _looks_like_markdown(text):
+        QTimer.singleShot(0, lambda: _do_internal_paste(editor, md2anki.convert(text)))
+        return QMimeData()
 
-    if has_html or has_img:
-        # Native paste keeps images & rich formatting; fix the math afterwards.
-        QTimer.singleShot(300, lambda: _render_after_paste(editor))
-        return mime
-
-    # Plain-text-only Markdown (no images/HTML to lose): render it ourselves.
-    conv = md2anki.convert(text)
-    QTimer.singleShot(0, lambda: _do_internal_paste(editor, conv))
-    return QMimeData()  # suppress Anki's own paste; we insert ourselves
+    return mime
 
 
 # ── Automatic migration / repair on startup ────────────────────────────────────
