@@ -115,6 +115,92 @@ def _render_delims(field: str) -> str:
 
 # ── pass 3: bare LaTeX, bounded to text nodes ──────────────────────────────────
 
+# Characters allowed to sit between commands inside one LaTeX expression.
+_RUN_CHARS = set(" \t0123456789+-*/=(),.:;^_<>|%!?'\""
+                 "→←↑↓⇒⇔≤≥≠≈±×÷·∘°√∞")
+
+
+def _match_brace(text: str, j: int) -> int:
+    depth = 0
+    n = len(text)
+    while j < n:
+        if text[j] == "{":
+            depth += 1
+        elif text[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    return j
+
+
+def _consume_latex_run(text: str, start: int) -> int:
+    """Return the index just past a maximal LaTeX expression beginning at
+    `start`. Stops at a bare (plain-text) word or an HTML entity — so two
+    separate boxed equations with prose between them are NOT merged."""
+    n = len(text)
+    j = start
+    while j < n:
+        c = text[j]
+        if c == "\\":                     # a command: \word (or \, \\ etc.)
+            k = j + 1
+            while k < n and text[k].isalpha():
+                k += 1
+            j = k if k > j + 1 else j + 2
+            continue
+        if c == "{":
+            j = _match_brace(text, j)
+            continue
+        if c in _RUN_CHARS:
+            j += 1
+            continue
+        break                             # bare letter / '&' entity → run ends
+    return j
+
+
+def _iter_segments(text: str):
+    """Split a text node into alternating ('plain', str) / ('latex', str)."""
+    segs = []
+    i, n = 0, len(text)
+    while i < n:
+        m = _LATEX_CMD.search(text, i)
+        if not m:
+            segs.append(("plain", text[i:]))
+            break
+        if m.start() > i:
+            segs.append(("plain", text[i:m.start()]))
+        j = _consume_latex_run(text, m.start())
+        segs.append(("latex", text[m.start():j]))
+        i = j
+    return segs
+
+
+def _is_pure_text(latex: str) -> bool:
+    return re.sub(r"\s+", "", re.sub(r"\\text\{[^{}]*\}", "", latex)) == ""
+
+
+def _process_text_node(node: str) -> str:
+    if "\\" not in node:
+        return node
+    segs = _iter_segments(node)
+    if not any(k == "latex" for k, _ in segs):
+        return node
+    out = []
+    for idx, (kind, val) in enumerate(segs):
+        if kind == "plain":
+            # drop a plain run that just duplicates the equation right after it
+            if idx + 1 < len(segs) and segs[idx + 1][0] == "latex":
+                val = _dedup_cut(val, _latex_to_plain(segs[idx + 1][1]))
+            out.append(val)
+        else:
+            latex = val.strip()
+            if _is_pure_text(latex):
+                out.append(_latex_to_plain(latex))
+            else:
+                out.append("<anki-mathjax>%s</anki-mathjax>" % _esc(latex))
+    return "".join(out)
+
+
 def _wrap_bare(field: str) -> str:
     segs = _MJ_SPLIT.split(field)
     for si in range(0, len(segs), 2):           # segments outside <anki-mathjax>
@@ -123,18 +209,7 @@ def _wrap_bare(field: str) -> str:
             continue
         toks = _TAG_SPLIT.split(seg)
         for ti in range(0, len(toks), 2):       # text nodes (no HTML tags inside)
-            node = toks[ti]
-            if "\\" not in node:
-                continue
-            m = _LATEX_CMD.search(node)
-            if not m:
-                continue
-            s = m.start()
-            latex = node[s:].strip()            # bounded by the text node → tag-safe
-            prefix = _dedup_cut(node[:s], _latex_to_plain(latex))
-            pure = re.sub(r"\s+", "", re.sub(r"\\text\{[^{}]*\}", "", latex)) == ""
-            repl = _latex_to_plain(latex) if pure else "<anki-mathjax>%s</anki-mathjax>" % _esc(latex)
-            toks[ti] = prefix + repl
+            toks[ti] = _process_text_node(toks[ti])
         segs[si] = "".join(toks)
     return "".join(segs)
 
@@ -143,18 +218,37 @@ def _wrap_bare(field: str) -> str:
 
 def _dedup(field: str) -> str:
     def fix(m):
-        before, attrs, latex = m.group(1), m.group(2), m.group(3)
+        before, br, attrs, latex = m.group(1), m.group(2) or "", m.group(3), m.group(4)
         plain = _latex_to_plain(_html.unescape(latex))
-        return _dedup_cut(before, plain) + "<anki-mathjax%s>%s</anki-mathjax>" % (attrs, latex)
+        return _dedup_cut(before, plain) + br + "<anki-mathjax%s>%s</anki-mathjax>" % (attrs, latex)
 
-    return re.sub(r"([^<>]*)<anki-mathjax([^>]*)>(.*?)</anki-mathjax>",
+    # optional <br> between the duplicated plain text and the equation
+    return re.sub(r"([^<>]*)(<br\s*/?>)?<anki-mathjax([^>]*)>(.*?)</anki-mathjax>",
                   fix, field, flags=re.DOTALL)
+
+
+# ── pass 1b: split an <anki-mathjax> that wrongly holds 2+ equations ────────────
+
+def _repair_mathjax(field: str) -> str:
+    def fix(m):
+        attrs, content = m.group(1), m.group(2)
+        raw = _html.unescape(content)
+        segs = _iter_segments(raw)
+        latex_count = sum(1 for k, _ in segs if k == "latex")
+        # Only touch clearly mis-wrapped elements (two+ separate equations).
+        # A single equation — however unusual — is left exactly as it is.
+        if latex_count < 2:
+            return m.group(0)
+        return _process_text_node(raw)
+
+    return _MJ_MATCH.sub(fix, field)
 
 
 # ── public ─────────────────────────────────────────────────────────────────────
 
 def migrate_field(field: str) -> str:
     out = _unswallow(field)
+    out = _repair_mathjax(out)
     out = _render_delims(out)
     out = _wrap_bare(out)
     out = _dedup(out)
