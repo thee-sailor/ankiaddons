@@ -214,6 +214,46 @@ def _wrap_bare(field: str) -> str:
     return "".join(segs)
 
 
+# ── pass 3b: inline sub/superscript duplication (CO2CO_2 → CO_2) ───────────────
+
+# A contiguous "formula" run containing at least one subscript/superscript,
+# e.g. CO2CO_2, H2OH_2O, Na+Na^+, Ca2+Ca^{2+} — no backslash command, so
+# pass 3 misses it. The duplication signature: with _ ^ { } removed the run is
+# a *doubled* string (visible + LaTeX-stripped), e.g. CO2CO_2 -> CO2CO2.
+_SUBSUP_UNIT = re.compile(r"[A-Za-z0-9+\-_^{}]*[_^][A-Za-z0-9+\-_^{}]*")
+
+
+def _dedup_inline_subsup(text: str) -> str:
+    if "_" not in text and "^" not in text:
+        return text
+
+    def fix(m):
+        tok = m.group(0)
+        stripped = re.sub(r"[_^{}]", "", tok)
+        h = len(stripped) // 2
+        if len(stripped) >= 4 and len(stripped) % 2 == 0 and stripped[:h] == stripped[h:] \
+                and re.search(r"[A-Za-z]", stripped[:h]):
+            latex = tok[h:]                       # second half keeps the markup
+            if "_" in latex or "^" in latex:
+                return "<anki-mathjax>%s</anki-mathjax>" % _esc(latex)
+        return tok
+
+    return _SUBSUP_UNIT.sub(fix, text)
+
+
+def _dedup_subsup(field: str) -> str:
+    segs = _MJ_SPLIT.split(field)
+    for si in range(0, len(segs), 2):                    # outside <anki-mathjax>
+        seg = segs[si]
+        if "_" not in seg and "^" not in seg:
+            continue
+        toks = _TAG_SPLIT.split(seg)
+        for ti in range(0, len(toks), 2):                # text nodes only
+            toks[ti] = _dedup_inline_subsup(toks[ti])
+        segs[si] = "".join(toks)
+    return "".join(segs)
+
+
 # ── pass 4: remove duplicated plain text before an equation ────────────────────
 
 def _dedup(field: str) -> str:
@@ -251,5 +291,6 @@ def migrate_field(field: str) -> str:
     out = _repair_mathjax(out)
     out = _render_delims(out)
     out = _wrap_bare(out)
+    out = _dedup_subsup(out)
     out = _dedup(out)
     return out
