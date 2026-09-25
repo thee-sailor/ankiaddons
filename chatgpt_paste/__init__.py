@@ -20,7 +20,7 @@ import urllib.request
 
 from aqt import gui_hooks, mw
 from aqt.editor import Editor
-from aqt.qt import QMimeData, QTimer
+from aqt.qt import QMimeData, QProgressDialog, Qt, QTimer
 from aqt.utils import tooltip
 
 from . import katex, md2anki, migrate
@@ -44,9 +44,10 @@ def _looks_like_markdown(text: str) -> bool:
     return bool(text) and any(re.search(p, text, re.MULTILINE) for p in _MD_MARKERS)
 
 
-def _do_internal_paste(editor: Editor, html: str):
+def _do_internal_paste(editor: Editor, html: str, on_done=None):
     """Insert as internal paste (keeps styles), then fully reload the note so the
-    <anki-mathjax> equations mount and render (nothing left in edit-mode)."""
+    <anki-mathjax> equations mount and render (nothing left in edit-mode).
+    `on_done` is called once the note has been reloaded (populated)."""
     try:
         editor.doPaste(html, True, False)
     except Exception:
@@ -58,6 +59,11 @@ def _do_internal_paste(editor: Editor, html: str):
                 editor.loadNote()
             except Exception:
                 pass
+            if on_done:
+                try:
+                    on_done()
+                except Exception:
+                    pass
         try:
             editor.saveNow(_reload)
         except Exception:
@@ -82,23 +88,47 @@ def _img_ext(ctype: str, url: str) -> str:
     return "." + m.group(1) if m else ".png"
 
 
+def _make_progress(editor: Editor, total: int) -> QProgressDialog:
+    parent = getattr(editor, "parentWindow", None) or mw
+    dlg = QProgressDialog("Rendering pasted note…", "", 0, total, parent)
+    dlg.setWindowTitle("Paste from ChatGPT")
+    dlg.setCancelButton(None)                       # no cancel — it's quick
+    dlg.setWindowModality(Qt.WindowModality.NonModal)
+    dlg.setMinimumDuration(0)
+    dlg.setAutoClose(False)
+    dlg.setAutoReset(False)
+    dlg.setValue(0)
+    dlg.show()
+    return dlg
+
+
 def _localize_and_paste(editor: Editor, html: str):
     """Download any remote <img> into the collection's media folder, rewrite the
     src to the local filename, then insert via an internal paste (which keeps the
-    <anki-mathjax> equations and images intact). Downloading runs off the UI
-    thread; media writes and the paste happen back on the main thread."""
+    <anki-mathjax> equations and images intact). A progress bar runs from paste
+    until the note is fully populated. Downloading runs off the UI thread; media
+    writes and the paste happen back on the main thread."""
     urls = list(dict.fromkeys(re.findall(r'<img[^>]+\bsrc="([^"]+)"', html)))
     remote = [u for u in urls if u.replace("&amp;", "&").startswith(("http://", "https://"))]
 
+    # total steps = one per image download + a final "insert & render" step
+    total = len(remote) + 1
+    dlg = _make_progress(editor, total)
+
     if not remote:
-        _do_internal_paste(editor, html)
+        dlg.setLabelText("Rendering…")
+        _do_internal_paste(editor, html, on_done=lambda: (dlg.setValue(total), dlg.close()))
         return
 
-    tooltip("Fetching %d image(s)…" % len(remote), period=2500)
+    dlg.setLabelText("Fetching images… 0/%d" % len(remote))
+
+    def _tick(done):
+        dlg.setValue(done)
+        dlg.setLabelText("Fetching images… %d/%d" % (done, len(remote)))
 
     def _work():
         fetched = {}
-        for u in remote:
+        for idx, u in enumerate(remote, start=1):
             real = u.replace("&amp;", "&")
             try:
                 req = urllib.request.Request(real, headers={"User-Agent": "Mozilla/5.0"})
@@ -106,8 +136,10 @@ def _localize_and_paste(editor: Editor, html: str):
                     fetched[u] = (r.read(), r.headers.get("Content-Type", ""))
             except Exception:
                 pass
+            mw.taskman.run_on_main(lambda d=idx: _tick(d))
 
         def _finish():
+            dlg.setLabelText("Inserting…")
             out = html
             for u, (data, ctype) in fetched.items():
                 try:
@@ -116,7 +148,7 @@ def _localize_and_paste(editor: Editor, html: str):
                     out = out.replace('src="%s"' % u, 'src="%s"' % fn)
                 except Exception:
                     pass
-            _do_internal_paste(editor, out)
+            _do_internal_paste(editor, out, on_done=lambda: (dlg.setValue(total), dlg.close()))
 
         mw.taskman.run_on_main(_finish)
 
