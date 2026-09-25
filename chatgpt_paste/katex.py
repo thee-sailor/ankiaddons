@@ -25,6 +25,14 @@ _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
 # are dropped so pasted notes stay lean and adopt the card's own styling.
 _KEEP_ATTRS = {"src", "alt", "href", "colspan", "rowspan", "start", "title"}
 
+# Borders re-added to tables (ChatGPT's own styling is stripped).
+_TABLE_STYLE = {
+    "table": "border-collapse:collapse;margin:8px 0;",
+    "th": "border:1px solid #7a7a9a;padding:5px 9px;text-align:left;"
+          "background:#00000022;font-weight:700;",
+    "td": "border:1px solid #7a7a9a;padding:5px 9px;",
+}
+
 
 def _esc(s: str) -> str:
     return _html.escape(s, quote=False)
@@ -51,6 +59,10 @@ class _KatexCleaner(HTMLParser):
                 parts.append(" " + k)
             else:
                 parts.append(' %s="%s"' % (k, v.replace("&", "&amp;").replace('"', "&quot;")))
+        # ChatGPT's inline styles were stripped, so give tables visible gridlines.
+        style = _TABLE_STYLE.get(tag.lower())
+        if style:
+            parts.append(' style="%s"' % style)
         parts.append("/>" if selfclose else ">")
         return "".join(parts)
 
