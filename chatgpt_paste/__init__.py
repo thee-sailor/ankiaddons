@@ -20,7 +20,7 @@ from aqt.editor import Editor
 from aqt.qt import QMimeData, QTimer
 from aqt.utils import tooltip
 
-from . import md2anki, migrate
+from . import katex, md2anki, migrate
 
 
 def _config() -> dict:
@@ -103,29 +103,40 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
     if not _config().get("auto", True):
         return mime
     try:
-        text = mime.text() if mime.hasText() else ""
         has_html = mime.hasHtml()
+        html = mime.html() if has_html else ""
+        text = mime.text() if mime.hasText() else ""
         has_img = (mime.hasImage() or mime.hasUrls()
-                   or (has_html and "<img" in (mime.html() or "").lower()))
+                   or (has_html and "<img" in html.lower()))
     except Exception:
         return mime
-
-    if not _looks_like_markdown(text):
-        return mime  # nothing to render
 
     editor = getattr(editor_web_view, "editor", None)
     if editor is None:
         return mime
 
+    # Best fix: clean ChatGPT's KaTeX HTML at the source. This removes the
+    # duplicated visible text, keeps the exact LaTeX (so sub/superscripts render
+    # correctly), and leaves images/tables intact for Anki's native paste.
+    if has_html and katex.has_katex(html):
+        try:
+            mime.setHtml(katex.clean_katex_html(html))
+        except Exception:
+            pass
+        QTimer.singleShot(300, lambda: _render_after_paste(editor))
+        return mime
+
+    if not _looks_like_markdown(text):
+        return mime  # nothing to render
+
     if has_html or has_img:
         # Native paste keeps images & rich formatting; fix the math afterwards.
-        # Delay lets Anki finish embedding images before we read the field.
         QTimer.singleShot(300, lambda: _render_after_paste(editor))
         return mime
 
     # Plain-text-only Markdown (no images/HTML to lose): render it ourselves.
-    html = md2anki.convert(text)
-    QTimer.singleShot(0, lambda: _do_internal_paste(editor, html))
+    conv = md2anki.convert(text)
+    QTimer.singleShot(0, lambda: _do_internal_paste(editor, conv))
     return QMimeData()  # suppress Anki's own paste; we insert ourselves
 
 
