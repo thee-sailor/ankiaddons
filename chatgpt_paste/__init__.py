@@ -90,41 +90,61 @@ def _img_ext(ctype: str, url: str) -> str:
 
 def _make_progress(editor: Editor, total: int) -> QProgressDialog:
     parent = getattr(editor, "parentWindow", None) or mw
-    dlg = QProgressDialog("Rendering pasted note…", "", 0, total, parent)
+    dlg = QProgressDialog("Rendering pasted note…", "", 0, max(1, total), parent)
     dlg.setWindowTitle("Paste from ChatGPT")
-    dlg.setCancelButton(None)                       # no cancel — it's quick
+    dlg.setCancelButton(None)                       # no cancel — don't interrupt insert
     dlg.setWindowModality(Qt.WindowModality.NonModal)
     dlg.setMinimumDuration(0)
     dlg.setAutoClose(False)
     dlg.setAutoReset(False)
+    dlg.setMinimumWidth(380)
     dlg.setValue(0)
     dlg.show()
+    dlg.raise_()
     return dlg
 
 
-def _localize_and_paste(editor: Editor, html: str):
-    """Download any remote <img> into the collection's media folder, rewrite the
-    src to the local filename, then insert via an internal paste (which keeps the
-    <anki-mathjax> equations and images intact). A progress bar runs from paste
-    until the note is fully populated. Downloading runs off the UI thread; media
-    writes and the paste happen back on the main thread."""
+def _count(html: str, pattern: str) -> int:
+    return len(re.findall(pattern, html, re.IGNORECASE))
+
+
+def _render_chatgpt(editor: Editor, html: str):
+    """Deterministically populate the note from cleaned HTML: download remote
+    images into the media folder, then insert via an internal paste (keeping
+    <anki-mathjax> equations, bordered tables and images). A progress dialog is
+    ALWAYS shown, counting equations, tables and images (done/total per type),
+    and stays until the note is fully populated."""
+    n_eq = _count(html, r"<anki-mathjax\b")
+    n_tbl = _count(html, r"<table\b")
     urls = list(dict.fromkeys(re.findall(r'<img[^>]+\bsrc="([^"]+)"', html)))
     remote = [u for u in urls if u.replace("&amp;", "&").startswith(("http://", "https://"))]
+    n_img = len(urls)
+    base_done = n_img - len(remote)                 # already-local images count as done
 
-    # total steps = one per image download + a final "insert & render" step
-    total = len(remote) + 1
-    dlg = _make_progress(editor, total)
+    dlg = _make_progress(editor, len(remote))
+
+    def _label(img_done: int, phase: str) -> str:
+        return ("%s\n\nEquations  %d / %d      Tables  %d / %d      Images  %d / %d"
+                % (phase, n_eq, n_eq, n_tbl, n_tbl, img_done, n_img))
+
+    def _close_soon():
+        QTimer.singleShot(800, dlg.close)           # linger so counts are readable
+
+    def _done():
+        dlg.setValue(dlg.maximum())
+        dlg.setLabelText(_label(n_img, "Done ✓"))
+        _close_soon()
 
     if not remote:
-        dlg.setLabelText("Rendering…")
-        _do_internal_paste(editor, html, on_done=lambda: (dlg.setValue(total), dlg.close()))
+        dlg.setLabelText(_label(n_img, "Rendering…"))
+        _do_internal_paste(editor, html, on_done=_done)
         return
 
-    dlg.setLabelText("Fetching images… 0/%d" % len(remote))
+    dlg.setLabelText(_label(base_done, "Fetching images…"))
 
-    def _tick(done):
-        dlg.setValue(done)
-        dlg.setLabelText("Fetching images… %d/%d" % (done, len(remote)))
+    def _tick(step: int, got: int):
+        dlg.setValue(step)
+        dlg.setLabelText(_label(base_done + got, "Fetching images…"))
 
     def _work():
         fetched = {}
@@ -136,10 +156,10 @@ def _localize_and_paste(editor: Editor, html: str):
                     fetched[u] = (r.read(), r.headers.get("Content-Type", ""))
             except Exception:
                 pass
-            mw.taskman.run_on_main(lambda d=idx: _tick(d))
+            mw.taskman.run_on_main(lambda s=idx, g=len(fetched): _tick(s, g))
 
         def _finish():
-            dlg.setLabelText("Inserting…")
+            dlg.setLabelText(_label(base_done + len(fetched), "Inserting…"))
             out = html
             for u, (data, ctype) in fetched.items():
                 try:
@@ -148,7 +168,7 @@ def _localize_and_paste(editor: Editor, html: str):
                     out = out.replace('src="%s"' % u, 'src="%s"' % fn)
                 except Exception:
                     pass
-            _do_internal_paste(editor, out, on_done=lambda: (dlg.setValue(total), dlg.close()))
+            _do_internal_paste(editor, out, on_done=_done)
 
         mw.taskman.run_on_main(_finish)
 
@@ -172,21 +192,22 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
     if editor is None:
         return mime
 
-    # ChatGPT (KaTeX) content: fully take over the paste. Clean the math from the
-    # KaTeX annotations (no duplication, correct sub/superscripts), download the
-    # images locally, and insert internally so <anki-mathjax> survives.
-    if has_html and katex.has_katex(html):
+    # ChatGPT content (equations, tables, or images): fully take over the paste.
+    # Clean the math from the KaTeX annotations (no duplication, correct
+    # sub/superscripts), strip ChatGPT's styling, add table gridlines, download
+    # images locally, and insert internally so everything survives.
+    if has_html and (katex.has_katex(html) or re.search(r"<table\b|<img\b", html, re.IGNORECASE)):
         cleaned = katex.clean_katex_html(html)
-        QTimer.singleShot(0, lambda: _localize_and_paste(editor, cleaned))
+        QTimer.singleShot(0, lambda: _render_chatgpt(editor, cleaned))
         return QMimeData()  # suppress Anki's own paste; we handle it entirely
 
-    # Other rich HTML (web pages, etc.) — let Anki paste it normally.
+    # Other rich HTML (plain web text, etc.) — let Anki paste it normally.
     if has_html:
         return mime
 
-    # Plain-text Markdown (no HTML) — render it ourselves.
+    # Plain-text Markdown (no HTML) — render it ourselves (with progress too).
     if _looks_like_markdown(text):
-        QTimer.singleShot(0, lambda: _do_internal_paste(editor, md2anki.convert(text)))
+        QTimer.singleShot(0, lambda: _render_chatgpt(editor, md2anki.convert(text)))
         return QMimeData()
 
     return mime
