@@ -44,32 +44,49 @@ def _find_any_browser_webview():
 
 # ── JavaScript injection into ChatGPT ─────────────────────────
 
-_JS_SEND = """
+_JS_SEND = r"""
 (function(text) {
-    // ChatGPT uses a contenteditable div with id="prompt-textarea"
-    var el = document.getElementById('prompt-textarea')
-           || document.querySelector('[contenteditable="true"][data-virtualkeyboardpolicy]')
-           || document.querySelector('div[contenteditable="true"]');
-
+    function findInput() {
+        return document.getElementById('prompt-textarea')
+            || document.querySelector('textarea[data-testid="prompt-textarea"]')
+            || document.querySelector('form textarea')
+            || document.querySelector('div[contenteditable="true"]');
+    }
+    var el = findInput();
     if (!el) { return 'NO_INPUT'; }
-
     el.focus();
 
-    // Clear existing content then insert new text
-    el.innerHTML = '';
-    document.execCommand('selectAll', false, null);
-    document.execCommand('insertText', false, text);
+    var tag = (el.tagName || '').toLowerCase();
+    if (tag === 'textarea' || tag === 'input') {
+        // Plain textarea — use the native value setter so React sees the change.
+        try {
+            var proto = tag === 'textarea' ? window.HTMLTextAreaElement.prototype
+                                           : window.HTMLInputElement.prototype;
+            Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
+        } catch (e) { el.value = text; }
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+        // Rich contenteditable (ProseMirror/Lexical) — clear, then type the text.
+        try {
+            document.execCommand('selectAll', false, null);
+            document.execCommand('delete', false, null);
+        } catch (e) {}
+        try { document.execCommand('insertText', false, text); }
+        catch (e) { el.textContent = text; }
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+    }
 
-    // Trigger React's synthetic input event so the Send button activates
-    el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text }));
-
-    // Click Send after a short delay
-    setTimeout(function() {
-        var send = document.querySelector('[data-testid="send-button"]')
-                || document.querySelector('button[aria-label="Send prompt"]')
-                || document.querySelector('button[aria-label*="Send"]');
-        if (send && !send.disabled) { send.click(); }
-    }, 300);
+    // Click Send, retrying while it becomes enabled (the model takes a moment).
+    var tries = 0;
+    (function clickSend() {
+        tries++;
+        var btn = document.querySelector('[data-testid="send-button"]')
+               || document.querySelector('button[data-testid="composer-send-button"]')
+               || document.querySelector('button[aria-label="Send prompt"]')
+               || document.querySelector('button[aria-label*="Send"]');
+        if (btn && !btn.disabled && btn.offsetParent !== null) { btn.click(); return; }
+        if (tries < 20) { setTimeout(clickSend, 150); }
+    })();
 
     return 'OK';
 })(%s);
@@ -94,15 +111,22 @@ def _send_to_browser(text: str):
 # ── Card text extractor ───────────────────────────────────────
 
 def _card_text(editor: Editor) -> str:
+    """Extract clean TEXT only from the note — no images or audio."""
     note = editor.note
     if not note:
         return ""
     parts = []
     for name, val in note.items():
-        clean = re.sub(r'<[^>]+>', ' ', val)
-        clean = html.unescape(clean).strip()
-        if clean:
-            parts.append(f"{name}:\n{clean}")
+        v = re.sub(r'<img[^>]*>', ' ', val, flags=re.IGNORECASE)          # drop images
+        v = re.sub(r'\[sound:[^\]]*\]', ' ', v, flags=re.IGNORECASE)       # drop audio/video
+        v = re.sub(r'<anki-mathjax[^>]*>(.*?)</anki-mathjax>',             # equation → its LaTeX text
+                   r' \1 ', v, flags=re.IGNORECASE | re.DOTALL)
+        v = re.sub(r'<[^>]+>', ' ', v)                                     # strip remaining tags
+        v = html.unescape(v)
+        v = re.sub(r'[ \t]+', ' ', v)
+        v = re.sub(r'\s*\n\s*', '\n', v).strip()
+        if v:
+            parts.append(f"{name}:\n{v}")
     return "\n\n".join(parts)
 
 
