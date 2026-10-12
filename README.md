@@ -91,6 +91,12 @@ Several add-ons add items to Anki's **Tools** menu:
 
   ![The find box showing a match count (2 / 5) and highlighted results](images/editor_field_search.png)
 
+### 🔠 editor_font_size — grow / shrink selected text
+- **Setup:** none.
+- **How to use:** Select text in a field, then click the **A▲** (bigger) or
+  **A▼** (smaller) icon in the editor toolbar — or press **Ctrl+Shift+.** /
+  **Ctrl+Shift+,**. Each click scales the selection a step.
+
 ### 🍅 focus_music_pomodoro — study timer + focus music
 - **Setup (optional):** On the **Decks** screen, look at the bottom bar. Click
   the **⚙️** (gear) to set your phases (e.g. Study 20 min → break 3 min →
@@ -180,6 +186,7 @@ This one needs a free **Groq** API key (takes ~2 minutes):
 | --- | --- |
 | `chatgpt_paste` | Paste ChatGPT notes and have Markdown/LaTeX render automatically — equations become MathJax, tables/lists/arrows/code become HTML, images kept. Also repairs older notes with un-rendered LaTeX on startup. |
 | `editor_field_search` | A “find in fields” box for the editor (toolbar icon / Ctrl+F): live match count, ▲/▼ navigation, time-of-day highlight colour. Never edits note content. |
+| `editor_font_size` | Two editor-toolbar buttons (A▲ / A▼, or Ctrl+Shift+. / Ctrl+Shift+,) to grow or shrink the selected text. |
 | `focus_music_pomodoro` | Focus-music player + a **multi-phase** Pomodoro cycle with per-phase notifications and a jump-to-phase menu. *Modified from the [Focus Music & Pomodoro Player](https://ankiweb.net/shared/info/1540641384) AnkiWeb add-on — see [`focus_music_pomodoro/CREDITS.md`](focus_music_pomodoro/CREDITS.md).* |
 | `anki_ai_assistant` | Groq-powered AI sidebar (explain/define/quiz/TTS/web-search, add replies as cards). **Set your own API key** in Config. |
 | `socrates_bar` | Editor bottom bar that sends card text to an embedded ChatGPT page + A–E answer buttons. |

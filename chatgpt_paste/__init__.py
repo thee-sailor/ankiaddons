@@ -55,10 +55,15 @@ def _do_internal_paste(editor: Editor, html: str, on_done=None):
 
     def _finish():
         def _reload():
+            # Keep the caret where the user pasted (don't reset to the top), so
+            # the content lands at the cursor and extra pastes append in order.
             try:
-                editor.loadNote()
+                editor.loadNoteKeepingFocus()
             except Exception:
-                pass
+                try:
+                    editor.loadNote()
+                except Exception:
+                    pass
             if on_done:
                 try:
                     on_done()

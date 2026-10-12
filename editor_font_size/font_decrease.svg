@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+  <text x="2" y="18.5" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#000">A</text>
+  <g fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="19.5" y1="8" x2="19.5" y2="17"/>
+    <polyline points="16.8,14.3 19.5,17 22.2,14.3"/>
+  </g>
+</svg>
