@@ -44,14 +44,54 @@ def _looks_like_markdown(text: str) -> bool:
     return bool(text) and any(re.search(p, text, re.MULTILINE) for p in _MD_MARKERS)
 
 
-def _do_internal_paste(editor: Editor, html: str, on_done=None):
-    """Insert as internal paste (keeps styles), then fully reload the note so the
-    <anki-mathjax> equations mount and render (nothing left in edit-mode).
-    `on_done` is called once the note has been reloaded (populated)."""
+# Capture the focused field + caret at Ctrl+V time (before we suppress the
+# native paste), so we can insert exactly there later.
+_SAVE_CARET_JS = r"""
+(function () {
+  var el = document.activeElement, root = document;
+  while (el && el.shadowRoot && el.shadowRoot.activeElement) {
+    root = el.shadowRoot; el = el.shadowRoot.activeElement;
+  }
+  var s = (root.getSelection && root.getSelection()) || window.getSelection();
+  window.__cgpField = el;
+  window.__cgpSel = s;
+  try { window.__cgpRange = (s && s.rangeCount) ? s.getRangeAt(0).cloneRange() : null; }
+  catch (e) { window.__cgpRange = null; }
+})();
+"""
+
+# Restore that caret, then insert the HTML there (not at the top of the note).
+_RESTORE_INSERT_JS = r"""
+(function (html) {
+  try {
+    var f = window.__cgpField;
+    if (f && f.focus) f.focus();
+    var s = window.__cgpSel, r = window.__cgpRange;
+    if (s && r) { s.removeAllRanges(); s.addRange(r); }
+  } catch (e) {}
+  try { document.execCommand("insertHTML", false, html); } catch (e) {}
+})(%s);
+"""
+
+
+def _save_caret(editor: Editor):
     try:
-        editor.doPaste(html, True, False)
+        editor.web.eval(_SAVE_CARET_JS)
     except Exception:
-        editor.web.eval("pasteHTML(%s, true, false);" % json.dumps(html))
+        pass
+
+
+def _do_internal_paste(editor: Editor, html: str, on_done=None):
+    """Insert the HTML at the saved caret (keeping the user's cursor position),
+    then reload so <anki-mathjax> equations render. `on_done` fires once the note
+    has been reloaded (populated)."""
+    try:
+        editor.web.eval(_RESTORE_INSERT_JS % json.dumps(html))
+    except Exception:
+        try:
+            editor.doPaste(html, True, False)
+        except Exception:
+            pass
 
     def _finish():
         def _reload():
@@ -202,6 +242,7 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
     # sub/superscripts), strip ChatGPT's styling, add table gridlines, download
     # images locally, and insert internally so everything survives.
     if has_html and (katex.has_katex(html) or re.search(r"<table\b|<img\b", html, re.IGNORECASE)):
+        _save_caret(editor)  # remember where the cursor is, before we suppress
         cleaned = katex.clean_katex_html(html)
         QTimer.singleShot(0, lambda: _render_chatgpt(editor, cleaned))
         return QMimeData()  # suppress Anki's own paste; we handle it entirely
@@ -212,6 +253,7 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
 
     # Plain-text Markdown (no HTML) — render it ourselves (with progress too).
     if _looks_like_markdown(text):
+        _save_caret(editor)
         QTimer.singleShot(0, lambda: _render_chatgpt(editor, md2anki.convert(text)))
         return QMimeData()
 
