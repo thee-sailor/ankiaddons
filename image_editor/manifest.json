@@ -1,0 +1,6 @@
+{
+    "package": "image_editor",
+    "name": "Image Editor (draw on images)",
+    "mod": 0,
+    "min_point_version": 50
+}
