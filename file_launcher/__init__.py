@@ -31,7 +31,7 @@ from aqt.qt import (
 from aqt.utils import showWarning, tooltip
 
 _ADDON = __name__
-_DEFAULTS = {"pdf_target": "embedded_browser", "pptx_target": "embedded_browser",
+_DEFAULTS = {"pdf_target": "annotate", "pptx_target": "annotate",
              "libreoffice_path": ""}
 _DOC_EXTS = (".pdf", ".pptx", ".ppt")
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -123,15 +123,21 @@ def _open_file(fname: str):
     target = _target_for(ext)
     open_path = path
 
-    if ext in ("pptx", "ppt") and target in ("embedded_browser", "local_browser"):
+    # PPTX needs converting to PDF for both the annotator and the browser viewers.
+    if ext in ("pptx", "ppt") and target in ("annotate", "embedded_browser", "local_browser"):
         pdf = _pptx_to_pdf(path)
         if pdf:
             open_path = pdf
         else:
             _os_open(path)
-            tooltip("Opened in the desktop app.\n(Install LibreOffice to view/draw "
-                    "PPTX in a browser tab.)", period=5000)
+            tooltip("Opened in the desktop app.\n(Install LibreOffice to draw on / "
+                    "view PPTX here.)", period=5000)
             return
+
+    if target == "annotate":
+        from . import annotate
+        annotate.open_annotator(None, open_path)
+        return
 
     if target == "embedded_browser":
         if _open_in_embedded_browser(QUrl.fromLocalFile(open_path).toString()):
@@ -255,6 +261,7 @@ def _on_js_message(handled, message: str, context):
 # ── settings dialog ─────────────────────────────────────────────────────────────
 
 _TARGET_LABELS = [
+    ("Annotator (draw + auto-save)", "annotate"),
     ("Embedded browser (Socrates tabs)", "embedded_browser"),
     ("Local browser / default viewer", "local_browser"),
     ("Desktop app", "local_app"),

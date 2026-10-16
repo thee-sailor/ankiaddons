@@ -5,9 +5,14 @@ browser, or the desktop app. Use **Tools → File Launcher Settings** for a UI, 
 edit here:
 
 - **`pdf_target`** / **`pptx_target`** — where each type opens:
+  - `"annotate"` *(default)* — the built-in **annotator**: draw with pen,
+    highlighter, eraser and text (colour + size + undo), across pages. Drawings
+    are written into the PDF and **saved automatically when you close the
+    window**. Uses PyMuPDF (installed on first use). PPTX is converted to PDF
+    (LibreOffice) and the annotated PDF is cached so marks persist.
   - `"embedded_browser"` — a new tab in the in-Anki tabbed browser (add-on
-    918010938, the one with the Socrates tabs). Its PDF viewer has pen /
-    highlight / text tools, so you can **draw on the PDF** and download it.
+    918010938, the Socrates one); its PDF viewer can draw but only *download* a
+    separate copy (no auto-save).
   - `"local_browser"` — your system default viewer.
   - `"local_app"` — the desktop app (Adobe, PowerPoint, …).
 - **`libreoffice_path`** — path to `soffice`. Usually auto-detected. PPTX is
