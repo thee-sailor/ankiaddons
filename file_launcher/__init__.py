@@ -146,8 +146,12 @@ def _open_file(fname: str):
             QDesktopServices.openUrl(QUrl(url))
             tooltip("Opened the annotator in your browser.", period=3000)
             return
-        from . import annotate         # engine unavailable → fall back to the window
-        annotate.open_annotator(None, open_path)
+        # QtPdf renderer unavailable → view in the embedded browser instead
+        if _open_in_embedded_browser(QUrl.fromLocalFile(open_path).toString()):
+            tooltip("Drawing renderer (QtPdf) unavailable — opened for viewing.",
+                    period=4000)
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(open_path))
         return
 
     if target == "annotate":
