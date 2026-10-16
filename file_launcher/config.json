@@ -1,5 +1,5 @@
 {
-    "pdf_target": "annotate",
-    "pptx_target": "annotate",
+    "pdf_target": "webannotate",
+    "pptx_target": "webannotate",
     "libreoffice_path": ""
 }

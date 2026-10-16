@@ -5,7 +5,12 @@ browser, or the desktop app. Use **Tools → File Launcher Settings** for a UI, 
 edit here:
 
 - **`pdf_target`** / **`pptx_target`** — where each type opens:
-  - `"annotate"` *(default)* — the built-in **annotator**: draw with pen,
+  - `"webannotate"` *(default)* — a **browser-tab annotator**: opens next to your
+    other tabs and lets you draw (pen, highlighter, eraser, text; colour, size,
+    undo) directly in the browser. Marks are written back into the PDF on **Save**
+    and automatically when the tab/Anki closes. Uses PyMuPDF + a local
+    127.0.0.1 helper, so the file is never locked.
+  - `"annotate"` — the same drawing but in a separate **window**: draw with pen,
     highlighter, eraser and text (colour + size + undo), across pages. Drawings
     are written into the PDF and **saved automatically when you close the
     window**. Uses PyMuPDF (installed on first use). PPTX is converted to PDF

@@ -31,7 +31,7 @@ from aqt.qt import (
 from aqt.utils import showWarning, tooltip
 
 _ADDON = __name__
-_DEFAULTS = {"pdf_target": "annotate", "pptx_target": "annotate",
+_DEFAULTS = {"pdf_target": "webannotate", "pptx_target": "webannotate",
              "libreoffice_path": ""}
 _DOC_EXTS = (".pdf", ".pptx", ".ppt")
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -123,8 +123,9 @@ def _open_file(fname: str):
     target = _target_for(ext)
     open_path = path
 
-    # PPTX needs converting to PDF for both the annotator and the browser viewers.
-    if ext in ("pptx", "ppt") and target in ("annotate", "embedded_browser", "local_browser"):
+    # PPTX needs converting to PDF for the annotators and the browser viewers.
+    if ext in ("pptx", "ppt") and target in ("webannotate", "annotate",
+                                             "embedded_browser", "local_browser"):
         pdf = _pptx_to_pdf(path)
         if pdf:
             open_path = pdf
@@ -133,6 +134,21 @@ def _open_file(fname: str):
             tooltip("Opened in the desktop app.\n(Install LibreOffice to draw on / "
                     "view PPTX here.)", period=5000)
             return
+
+    if target == "webannotate":
+        from . import webannotate
+        url = webannotate.viewer_url(open_path)
+        if url and _open_in_embedded_browser(url):
+            tooltip("Opened in a browser tab — draw, then Save (saves on close too).",
+                    period=3000)
+            return
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+            tooltip("Opened the annotator in your browser.", period=3000)
+            return
+        from . import annotate         # engine unavailable → fall back to the window
+        annotate.open_annotator(None, open_path)
+        return
 
     if target == "annotate":
         from . import annotate
@@ -261,8 +277,9 @@ def _on_js_message(handled, message: str, context):
 # ── settings dialog ─────────────────────────────────────────────────────────────
 
 _TARGET_LABELS = [
-    ("Annotator (draw + auto-save)", "annotate"),
-    ("Embedded browser (Socrates tabs)", "embedded_browser"),
+    ("Draw in a browser tab (recommended)", "webannotate"),
+    ("Annotator window (draw + auto-save)", "annotate"),
+    ("Embedded browser — view only", "embedded_browser"),
     ("Local browser / default viewer", "local_browser"),
     ("Desktop app", "local_app"),
 ]
