@@ -1,5 +1,5 @@
 {
-    "pdf_target": "embedded_browser",
-    "pptx_target": "embedded_browser",
+    "pdf_target": "annotate",
+    "pptx_target": "annotate",
     "libreoffice_path": ""
 }
