@@ -195,6 +195,7 @@ This one needs a free **Groq** API key (takes ~2 minutes):
 | `editor_field_search` | A “find in fields” box for the editor (toolbar icon / Ctrl+F): live match count, ▲/▼ navigation, time-of-day highlight colour. Never edits note content. |
 | `editor_font_size` | Two editor-toolbar buttons (A▲ / A▼, or Ctrl+Shift+. / Ctrl+Shift+,) to grow or shrink the selected text. |
 | `image_editor` | Right-click an image in a field → draw on it (pen, marker, arrow, shapes, text, eraser, colour, size, undo); Save updates this card's image. |
+| `file_launcher` | Attach PDFs/PPTX (📎) and open them in the embedded browser (new tab, with the PDF viewer's draw tools), local browser, or desktop app; links clickable in editor + reviewer. PPTX is converted to PDF via LibreOffice. |
 | `focus_music_pomodoro` | Focus-music player + a **multi-phase** Pomodoro cycle with per-phase notifications and a jump-to-phase menu. *Modified from the [Focus Music & Pomodoro Player](https://ankiweb.net/shared/info/1540641384) AnkiWeb add-on — see [`focus_music_pomodoro/CREDITS.md`](focus_music_pomodoro/CREDITS.md).* |
 | `anki_ai_assistant` | Groq-powered AI sidebar (explain/define/quiz/TTS/web-search, add replies as cards). **Set your own API key** in Config. |
 | `socrates_bar` | Editor bottom bar that sends card text to an embedded ChatGPT page + A–E answer buttons. |

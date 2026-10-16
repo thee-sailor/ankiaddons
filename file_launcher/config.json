@@ -1,0 +1,5 @@
+{
+    "pdf_target": "embedded_browser",
+    "pptx_target": "embedded_browser",
+    "libreoffice_path": ""
+}
