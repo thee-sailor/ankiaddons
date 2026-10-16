@@ -150,16 +150,61 @@ def _open_file(fname: str):
 # ── clickable link (works in editor + reviewer via pycmd) ─────────────────────
 
 def _make_link(fname: str) -> str:
+    # No inline onclick — Anki strips event handlers from field HTML. We mark the
+    # link with class + data-fl and attach the click handler via injected JS.
     safe = html.escape(fname)
     label = html.escape(os.path.basename(fname))
     icon = "📊" if fname.lower().endswith((".pptx", ".ppt")) else "📄"
     return (
-        '<a href="#" contenteditable="false" class="file-launcher-link" '
-        'data-fl="%s" onclick="pycmd(\'fileopen:\' + '
-        'encodeURIComponent(this.getAttribute(\'data-fl\'))); return false;" '
-        'style="color:#7c3aed;font-weight:600;text-decoration:none;">%s&nbsp;%s</a>&nbsp;'
+        '<a href="#" contenteditable="false" class="fl-link" data-fl="%s" '
+        'style="color:#7c3aed;font-weight:600;text-decoration:none;cursor:pointer;">'
+        '%s&nbsp;%s</a>&nbsp;'
         % (safe, icon, label)
     )
+
+
+# JS that opens our links on click, in the editor (shadow-DOM fields) and the
+# reviewer. Installed once per page; uses composedPath so it works across shadow
+# roots, and pycmd to reach _on_js_message.
+_CLICK_JS = r"""
+(function () {
+  if (window.__flClickReady) return;
+  window.__flClickReady = true;
+  document.addEventListener("click", function (e) {
+    var path = e.composedPath ? e.composedPath() : [e.target];
+    for (var i = 0; i < path.length; i++) {
+      var el = path[i];
+      if (el && el.getAttribute) {
+        var f = el.getAttribute("data-fl");   // matches old + new links
+        if (f) {
+          e.preventDefault();
+          e.stopPropagation();
+          pycmd("fileopen:" + encodeURIComponent(f));
+          return;
+        }
+      }
+    }
+  }, true);
+})();
+"""
+
+
+def _inject_click_handler(web):
+    try:
+        web.eval(_CLICK_JS)
+    except Exception:
+        pass
+
+
+def _on_editor_load(editor: Editor):
+    _inject_click_handler(editor.web)
+
+
+def _on_reviewer_show(card=None):
+    try:
+        _inject_click_handler(mw.reviewer.web)
+    except Exception:
+        pass
 
 
 def _attach(editor: Editor):
@@ -276,3 +321,6 @@ def _add_menu():
 gui_hooks.editor_did_init_buttons.append(_on_editor_buttons)
 gui_hooks.webview_did_receive_js_message.append(_on_js_message)
 gui_hooks.main_window_did_init.append(_add_menu)
+gui_hooks.editor_did_load_note.append(_on_editor_load)
+gui_hooks.reviewer_did_show_question.append(_on_reviewer_show)
+gui_hooks.reviewer_did_show_answer.append(_on_reviewer_show)
