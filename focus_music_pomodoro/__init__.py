@@ -1,15 +1,3 @@
-# Focus Music & Pomodoro Player
-#
-# Based on the "Focus Music & Pomodoro Player" add-on published on AnkiWeb
-# (add-on ID 1540641384): https://ankiweb.net/shared/info/1540641384
-# Original author: the AnkiWeb publisher of that add-on (name not recorded in
-# the distributed package). This is a modified version that adds a customizable
-# multi-phase cycle, per-phase notifications, and a phase-jump menu.
-#
-# Credit for the original work belongs to its author. If you are that author
-# and want a specific credit line or a different license for this folder,
-# please open an issue on the repository.
-
 import os
 import random
 import json
@@ -271,6 +259,7 @@ class FocusMusicPlayer:
         self.current_time = self._phase_seconds(self.phase_index)
         self.timer = QTimer(); self.timer.timeout.connect(self.update_timer)
         self.timer_running = False; self.paused_by_card = False
+        self._reminded = False          # 10s "finish the card" reminder, per study phase
 
         self.load_playlist()
         self.setup_ui()
@@ -570,6 +559,7 @@ class FocusMusicPlayer:
         self.timer.stop(); self.timer_running = False
         self.phase_index = 0
         self.current_time = self._phase_seconds(self.phase_index)
+        self._reminded = False
         self.lbl_timer.setText(self.format_time(self.current_time))
         self.update_ui_for_state_paused()
 
@@ -597,6 +587,7 @@ class FocusMusicPlayer:
         self.timer.stop()
         self.phase_index = index
         self.current_time = self._phase_seconds(index)
+        self._reminded = False
         p = self.current_phase()
         if p.get("kind") == "work":
             self.player.play()
@@ -623,6 +614,7 @@ class FocusMusicPlayer:
         self.phase_index = (self.phase_index + 1) % len(self.phases)
         nxt = self.current_phase()
         self.current_time = self._phase_seconds(self.phase_index)
+        self._reminded = False
 
         # Music: play on study phases, pause on breaks
         if nxt.get("kind") == "work":
@@ -644,8 +636,32 @@ class FocusMusicPlayer:
         self.timer.start(1000); self.timer_running = True
         self.update_ui_for_state_running()
 
+    def _show_card_reminder(self):
+        """Non-modal reminder 10s before a study phase ends — doesn't pause the
+        countdown; auto-closes before the phase finishes."""
+        try:
+            QApplication.beep()
+            box = QMessageBox(mw)
+            box.setWindowTitle("Study session ending")
+            box.setIcon(QMessageBox.Icon.Warning)
+            box.setText("⏳ 10 seconds left in this study session!")
+            box.setInformativeText("Finish the current card now so it gets logged in Sainyu.")
+            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            box.setWindowModality(Qt.WindowModality.NonModal)
+            box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+            box.show(); box.raise_(); box.activateWindow()
+            QTimer.singleShot(8000, box.close)
+        except Exception:
+            pass
+
     def update_timer(self):
         self.current_time -= 1
+        # 10s before a STUDY phase ends: remind the user to finish the card so
+        # it gets logged in Sainyu (sainyu_session_logger).
+        if (self.current_time == 10 and self._is_work_phase()
+                and not self._reminded):
+            self._reminded = True
+            self._show_card_reminder()
         if self.current_time > 0:
             self.lbl_timer.setText(self.format_time(self.current_time))
             return
