@@ -35,7 +35,8 @@ class _ResizeFilter(QObject):
 
 # --- CONFIGURATION DIALOG ---
 class ConfigDialog(QDialog):
-    def __init__(self, parent, phases, daily_goal, music_path, notify_popup):
+    def __init__(self, parent, phases, daily_goal, music_path, notify_popup,
+                 reminder_seconds=10, reminder_modal=False):
         super().__init__(parent)
         self.setWindowTitle("Pomodoro Settings")
         self.setMinimumSize(500, 500)
@@ -84,6 +85,22 @@ class ConfigDialog(QDialog):
                                   "Off: a quick tooltip appears and the next phase "
                                   "starts automatically.")
         form.addRow("Notifications:", self.notify_cb)
+
+        self.reminder_spin = QSpinBox()
+        self.reminder_spin.setRange(0, 120)
+        self.reminder_spin.setValue(reminder_seconds)
+        self.reminder_spin.setSuffix(" s")
+        self.reminder_spin.setToolTip("Seconds before a study phase ends to remind "
+                                      "you to finish the card for Sainyu. 0 = off.")
+        form.addRow("Finish-card reminder:", self.reminder_spin)
+
+        self.reminder_modal_cb = QCheckBox("Pause the countdown until I click OK")
+        self.reminder_modal_cb.setChecked(reminder_modal)
+        self.reminder_modal_cb.setToolTip("On: the timer pauses at the reminder so you "
+                                          "can finish the card before the break.\n"
+                                          "Off: a non-blocking pop-up; the countdown "
+                                          "keeps running.")
+        form.addRow("", self.reminder_modal_cb)
 
         self.path_label = QLabel(self.music_path if self.music_path else "Default (Add-on Folder)")
         self.path_label.setStyleSheet("color: #777; font-size: 10px;")
@@ -171,7 +188,9 @@ class ConfigDialog(QDialog):
         self.accept()
 
     def get_values(self):
-        return self.rows, self.goal_spin.value(), self.music_path, self.notify_cb.isChecked()
+        return (self.rows, self.goal_spin.value(), self.music_path,
+                self.notify_cb.isChecked(), self.reminder_spin.value(),
+                self.reminder_modal_cb.isChecked())
 
 
 # --- HISTORY DIALOG ---
@@ -236,6 +255,8 @@ class FocusMusicPlayer:
         self.daily_goal      = int(self.settings.value("daily_goal", 4))
         self.music_path      = self.settings.value("music_path", "")
         self.notify_popup    = self.settings.value("notify_popup", True, type=bool)
+        self.reminder_seconds = int(self.settings.value("reminder_seconds", 10))
+        self.reminder_modal  = self.settings.value("reminder_modal", False, type=bool)
         try:
             self.history_data = json.loads(self.settings.value("history_data", "{}"))
         except Exception:
@@ -534,13 +555,18 @@ class FocusMusicPlayer:
         HistoryDialog(self.container_widget, self.history_data, self.daily_goal, self.reset_today_history).exec()
 
     def open_settings(self):
-        dialog = ConfigDialog(self.container_widget, self.phases, self.daily_goal, self.music_path, self.notify_popup)
+        dialog = ConfigDialog(self.container_widget, self.phases, self.daily_goal,
+                              self.music_path, self.notify_popup,
+                              self.reminder_seconds, self.reminder_modal)
         if dialog.exec():
-            self.phases, self.daily_goal, self.music_path, self.notify_popup = dialog.get_values()
+            (self.phases, self.daily_goal, self.music_path, self.notify_popup,
+             self.reminder_seconds, self.reminder_modal) = dialog.get_values()
             self.settings.setValue("phases", json.dumps(self.phases))
             self.settings.setValue("daily_goal", self.daily_goal)
             self.settings.setValue("music_path", self.music_path)
             self.settings.setValue("notify_popup", self.notify_popup)
+            self.settings.setValue("reminder_seconds", self.reminder_seconds)
+            self.settings.setValue("reminder_modal", self.reminder_modal)
             self.load_playlist(); self.update_progress_display(); self.reset_timer(); tooltip("Settings Saved")
 
     def format_time(self, seconds):
@@ -637,29 +663,47 @@ class FocusMusicPlayer:
         self.update_ui_for_state_running()
 
     def _show_card_reminder(self):
-        """Non-modal reminder 10s before a study phase ends — doesn't pause the
-        countdown; auto-closes before the phase finishes."""
+        """Reminder N seconds before a study phase ends: finish the card so it's
+        logged in Sainyu. Modal mode PAUSES the countdown until you click OK;
+        otherwise a non-blocking pop-up that auto-closes before the phase ends."""
+        lead = self.reminder_seconds
+        text = f"⏳ {lead} seconds left in this study session!"
         try:
             QApplication.beep()
-            box = QMessageBox(mw)
-            box.setWindowTitle("Study session ending")
-            box.setIcon(QMessageBox.Icon.Warning)
-            box.setText("⏳ 10 seconds left in this study session!")
-            box.setInformativeText("Finish the current card now so it gets logged in Sainyu.")
-            box.setStandardButtons(QMessageBox.StandardButton.Ok)
-            box.setWindowModality(Qt.WindowModality.NonModal)
-            box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-            box.show(); box.raise_(); box.activateWindow()
-            QTimer.singleShot(8000, box.close)
+            if self.reminder_modal:
+                # Pause the countdown while the modal is up, then resume.
+                self.timer.stop()
+                box = QMessageBox(mw)
+                box.setWindowTitle("Study session ending")
+                box.setIcon(QMessageBox.Icon.Warning)
+                box.setText(text)
+                box.setInformativeText("Finish the current card so it gets logged in "
+                                       "Sainyu, then click OK to continue.")
+                box.setStandardButtons(QMessageBox.StandardButton.Ok)
+                box.exec()                       # blocks until acknowledged
+                if self.timer_running:           # resume the remaining seconds
+                    self.timer.start(1000)
+            else:
+                box = QMessageBox(mw)
+                box.setWindowTitle("Study session ending")
+                box.setIcon(QMessageBox.Icon.Warning)
+                box.setText(text)
+                box.setInformativeText("Finish the current card now so it gets logged "
+                                       "in Sainyu.")
+                box.setStandardButtons(QMessageBox.StandardButton.Ok)
+                box.setWindowModality(Qt.WindowModality.NonModal)
+                box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+                box.show(); box.raise_(); box.activateWindow()
+                QTimer.singleShot(max(1000, (lead - 2) * 1000), box.close)
         except Exception:
             pass
 
     def update_timer(self):
         self.current_time -= 1
-        # 10s before a STUDY phase ends: remind the user to finish the card so
-        # it gets logged in Sainyu (sainyu_session_logger).
-        if (self.current_time == 10 and self._is_work_phase()
-                and not self._reminded):
+        # N seconds before a STUDY phase ends: remind the user to finish the card
+        # so it gets logged in Sainyu (sainyu_session_logger).
+        if (self.reminder_seconds > 0 and self.current_time == self.reminder_seconds
+                and self._is_work_phase() and not self._reminded):
             self._reminded = True
             self._show_card_reminder()
         if self.current_time > 0:
