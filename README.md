@@ -104,6 +104,19 @@ Several add-ons add items to Anki's **Tools** menu:
   text and eraser (colour + size + undo). **Save** writes the annotated image
   into your media and points this card at it (other notes are untouched).
 
+### 🎬 media_embed — play YouTube & local video/audio on the card
+- **Setup:** none. (Tune quality/privacy in **Tools → Media Embed Settings…**.)
+- **How to use:**
+  - **YouTube:** while editing a card, **paste a YouTube link** into a field. It
+    plays embedded on the card (with an *Open on YouTube* fallback link).
+  - **Local video/audio:** in the editor toolbar, click **🎞** (video) or **🎵**
+    (audio), pick a file. It plays inline on the card with play/pause/volume.
+  - Everything plays **inside the card** — never a popup — and never auto-plays.
+- **Note:** Anki's card view can't play H.264/MP4 or AAC/M4A, so those are
+  converted once (to AV1 WebM / Ogg Vorbis) with Anki's built-in converter. To
+  fix files you attached earlier, run **Tools → Media Embed: Convert existing
+  attachments…**.
+
 ### 🍅 focus_music_pomodoro — study timer + focus music
 - **Setup (optional):** On the **Decks** screen, look at the bottom bar. Click
   the **⚙️** (gear) to set your phases (e.g. Study 20 min → break 3 min →
