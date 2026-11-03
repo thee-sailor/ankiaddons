@@ -1,0 +1,6 @@
+{
+    "package": "chatgpt_paste",
+    "name": "Paste from ChatGPT (render Markdown & math)",
+    "mod": 0,
+    "min_point_version": 50
+}

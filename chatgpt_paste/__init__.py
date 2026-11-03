@@ -20,14 +20,88 @@ import urllib.request
 
 from aqt import gui_hooks, mw
 from aqt.editor import Editor
-from aqt.qt import QMimeData, QProgressDialog, Qt, QTimer
-from aqt.utils import tooltip
+from aqt.qt import (
+    QBuffer, QImage, QInputDialog, QIODevice, QMimeData, QProgressDialog, Qt,
+    QTimer,
+)
+from aqt.utils import showWarning, tooltip
 
-from . import katex, md2anki, migrate
+from . import katex, md2anki, migrate, share_import
 
 
 def _config() -> dict:
     return mw.addonManager.getConfig(__name__) or {}
+
+
+# ── Image-source recovery + diagnostics ───────────────────────────────────────
+# Some sites (and newer ChatGPT builds) lazy-load images: the real URL lives in
+# srcset / data-src and `src` is a placeholder or missing. The katex cleaner only
+# keeps `src`, so those images vanished and the counter read 0/0. Recover a usable
+# `src` from srcset/data-src BEFORE cleaning, so the downloader can fetch them.
+
+_IMG_TAG_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+
+
+def _first_srcset_url(val: str):
+    cands = [c.strip() for c in val.split(",") if c.strip()]
+    if not cands:
+        return None
+    return cands[-1].split()[0]          # last candidate = usually highest-res
+
+
+def _attr(tag: str, name: str):
+    m = (re.search(r'\b%s\s*=\s*"([^"]+)"' % name, tag, re.I)
+         or re.search(r"\b%s\s*=\s*'([^']+)'" % name, tag, re.I))
+    return m.group(1) if m else None
+
+
+def _normalize_img_src(html_in: str) -> str:
+    def fix(m):
+        tag = m.group(0)
+        cur = _attr(tag, "src")
+        # keep a real src; only replace a missing one or a data:/placeholder one
+        if cur and not cur.startswith("data:"):
+            return tag
+        url = (_attr(tag, "data-src") or _attr(tag, "data-original")
+               or _attr(tag, "data-lazy-src"))
+        if not url:
+            ss = _attr(tag, "srcset")
+            if ss:
+                url = _first_srcset_url(ss)
+        if not url:
+            return tag
+        if cur is not None:              # replace the placeholder src value
+            return re.sub(r'(\bsrc\s*=\s*)(".*?"|\'.*?\')', r'\1"%s"' % url, tag, count=1, flags=re.I)
+        if tag.rstrip().endswith("/>"):  # inject a src
+            return re.sub(r"/>\s*$", ' src="%s"/>' % url, tag)
+        return re.sub(r">\s*$", ' src="%s">' % url, tag)
+
+    return _IMG_TAG_RE.sub(fix, html_in)
+
+
+def _clipboard_image_html(mime) -> str:
+    """If the clipboard carries an actual image (bitmap), save it into the media
+    folder and return an <img> for it. This is how a right-click→Copy image, or a
+    selection that includes the picture, delivers the image — NOT in the HTML."""
+    try:
+        if not mime.hasImage():
+            return ""
+        img = mime.imageData()
+        qimg = img if isinstance(img, QImage) else QImage(img)
+        if qimg is None or qimg.isNull():
+            return ""
+        buf = QBuffer()
+        buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        qimg.save(buf, "PNG")
+        data = bytes(buf.data())
+        buf.close()
+        if not data:
+            return ""
+        name = "chatgpt-%s.png" % hashlib.md5(data).hexdigest()[:16]
+        fn = mw.col.media.write_data(name, data)
+        return '<img src="%s">' % fn
+    except Exception:
+        return ""
 
 
 # ── Clipboard paste (fresh ChatGPT Markdown) ───────────────────────────────────
@@ -243,7 +317,10 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
     # images locally, and insert internally so everything survives.
     if has_html and (katex.has_katex(html) or re.search(r"<table\b|<img\b", html, re.IGNORECASE)):
         _save_caret(editor)  # remember where the cursor is, before we suppress
-        cleaned = katex.clean_katex_html(html)
+        normalized = _normalize_img_src(html)   # recover srcset / data-src images
+        # If the picture is on the clipboard as a bitmap (not in the HTML), keep
+        # it — otherwise suppressing the paste would throw it away.
+        cleaned = katex.clean_katex_html(normalized) + _clipboard_image_html(mime)
         QTimer.singleShot(0, lambda: _render_chatgpt(editor, cleaned))
         return QMimeData()  # suppress Anki's own paste; we handle it entirely
 
@@ -254,7 +331,8 @@ def _on_will_process_mime(mime: QMimeData, editor_web_view, internal: bool,
     # Plain-text Markdown (no HTML) — render it ourselves (with progress too).
     if _looks_like_markdown(text):
         _save_caret(editor)
-        QTimer.singleShot(0, lambda: _render_chatgpt(editor, md2anki.convert(text)))
+        content = md2anki.convert(text) + _clipboard_image_html(mime)
+        QTimer.singleShot(0, lambda: _render_chatgpt(editor, content))
         return QMimeData()
 
     return mime
@@ -305,5 +383,58 @@ def _on_collection_load(_col=None):
     QTimer.singleShot(400, _auto_migrate)
 
 
+# ── Import a ChatGPT share link (text + images) into the current card ──────────
+
+def _strip_url_alts(html: str) -> str:
+    # ChatGPT sets alt to the (long) image URL; drop it so fields stay lean.
+    return re.sub(r'\salt="https?://[^"]*"', "", html)
+
+
+def _import_share(editor: Editor):
+    clip = ""
+    try:
+        clip = mw.app.clipboard().text() or ""
+    except Exception:
+        pass
+    default = clip.strip() if share_import.SHARE_RE.search(clip) else ""
+    url, ok = QInputDialog.getText(
+        editor.parentWindow, "Import from ChatGPT",
+        "Paste a ChatGPT share link (chatgpt.com/share/…).\n"
+        "In ChatGPT: Share → Create link, then paste it here.", text=default)
+    if not ok:
+        return
+    m = share_import.SHARE_RE.search(url or "")
+    if not m:
+        showWarning("That isn't a ChatGPT share link.\n\nIt should look like:\n"
+                    "https://chatgpt.com/share/xxxxxxxx")
+        return
+    _save_caret(editor)                              # insert at the cursor afterwards
+    tip = tooltip("Loading the ChatGPT page… (this can take a few seconds)", period=4000)
+
+    def on_html(raw):
+        cleaned = _strip_url_alts(katex.clean_katex_html(raw))
+        if not re.search(r"<\w", cleaned):
+            showWarning("The page loaded but no note content was found.")
+            return
+        _render_chatgpt(editor, cleaned)             # downloads images + inserts, with progress
+
+    def on_fail(msg):
+        showWarning("Couldn't import from that link:\n\n%s" % msg)
+
+    share_import.render(m.group(0), on_html, on_fail)
+
+
+def _on_editor_buttons(buttons: list, editor: Editor):
+    try:
+        buttons.append(editor.addButton(
+            icon=None, cmd="chatgpt_import_share",
+            func=lambda e: _import_share(e),
+            tip="Import a ChatGPT share link (text + all images) into this card",
+            label="📥💬"))
+    except Exception as exc:
+        print("[chatgpt_paste] could not add import button:", exc)
+
+
 gui_hooks.editor_will_process_mime.append(_on_will_process_mime)
+gui_hooks.editor_did_init_buttons.append(_on_editor_buttons)
 gui_hooks.collection_did_load.append(_on_collection_load)

@@ -78,6 +78,10 @@ Several add-ons add items to Anki's **Tools** menu:
 - **How to use:** In ChatGPT, click **Copy** under a reply. In an Anki card
   field, press **Ctrl+V**. Equations, tables, arrows and images appear
   formatted automatically.
+- **Import a whole page with images:** ChatGPT's Copy button drops images, so to
+  bring the **text *and* every image** into a card, click the **📥💬** button in
+  the editor toolbar and paste a ChatGPT **share link** (in ChatGPT: Share →
+  Create link). The add-on loads the page and imports everything into the card.
 
   ![A ChatGPT equation rendered automatically in an Anki card field](images/chatgpt_paste_equation.png)
 
